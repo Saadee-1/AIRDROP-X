@@ -802,10 +802,10 @@ class PayloadLibraryTab:
 # Global singleton instance for backward compatibility with `render` shim
 _tab_instance = PayloadLibraryTab()
 
-def render(ax, fig, interactive=True):
+def render(ax, fig, interactive=True, run_simulation_callback=None):
     """Backwards-compatible render function using the global singleton."""
     try:
-        _tab_instance.render(ax, fig, interactive)
+        _tab_instance.render(ax, fig, interactive, run_simulation_callback)
     except Exception as e:
         print(f"UI RENDER ERROR: {e}")
         import traceback; traceback.print_exc()
