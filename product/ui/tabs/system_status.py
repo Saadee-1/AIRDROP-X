@@ -26,6 +26,7 @@ def _defaults():
         "n_samples": None,
         "uncertainty_model": "Gaussian wind (mean + std), one sample per trajectory.",
         "dt": None,
+        "snapshot_created_at": None,
         "limitations": [
             "Point-mass payload; no rotation or attitude dynamics.",
             "2D target (X–Y); impact at Z=0 only.",
@@ -89,13 +90,17 @@ def render(ax, **kwargs):
         f"{d['system_name']}  ·  v{d['version']}  ·  build {d['build_id']}",
         "Physics: " + (d["physics_description"] or "—"),
         "Monte Carlo: " + (d["mc_description"] or "—"),
+        "Config source: configs.mission_configs (ASSUMED)",
     ]
     y = section("ENGINE IDENTITY", y, identity_lines, line_height=0.14)
 
     # 2. Reproducibility
+    created = d.get("snapshot_created_at")
+    created_str = _fmt(created)
     repro_lines = [
         f"Random seed: {_fmt(d['random_seed'])}   Sample count: {_fmt(d['n_samples'])}   Time step: {_fmt(d['dt'])} s",
         "Uncertainty: " + (d["uncertainty_model"] or "—"),
+        f"Snapshot created at: {created_str}",
     ]
     y = section("REPRODUCIBILITY", y, repro_lines, line_height=0.14)
 

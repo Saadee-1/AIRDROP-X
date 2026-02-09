@@ -132,7 +132,7 @@ def _update_bc_display():
         fig.canvas.draw_idle()
 
 
-def render(ax, fig):
+def render(ax, fig, interactive=True):
     ax.set_axis_off()
     ax.set_facecolor(_BG)
     ax.set_xlim(0, 1)
@@ -279,10 +279,11 @@ def render(ax, fig):
         _state["dimensions_str"] = t.strip() if t else None
         _update_bc_display()
 
-    mass_tb.on_submit(on_mass)
-    area_tb.on_submit(on_area)
-    cd_tb.on_submit(on_cd)
-    dims_tb.on_submit(on_dims)
+    if interactive:
+        mass_tb.on_submit(on_mass)
+        area_tb.on_submit(on_area)
+        cd_tb.on_submit(on_cd)
+        dims_tb.on_submit(on_dims)
 
     # Dropdown: categories + optional payloads sirf expanded parent ke neeche; toggle/main se band
     _category_axes = []
@@ -387,6 +388,21 @@ def render(ax, fig):
         fig.canvas.draw()
 
     def open_category_dropdown(event):
+        if not interactive:
+            # In Qt app, payload controls do not re-run the engine; keep honest.
+            left.text(
+                0.5,
+                0.12,
+                "LOCKED for this simulation snapshot (no engine re-run)",
+                transform=left.transAxes,
+                fontsize=7,
+                color=_LABEL,
+                ha="center",
+                va="center",
+                family="monospace",
+            )
+            fig.canvas.draw_idle()
+            return
         if _showing[0] in ("categories", "payloads"):
             _clear_all_choice_buttons()
             fig.canvas.draw_idle()

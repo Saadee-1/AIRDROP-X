@@ -1,0 +1,32 @@
+PyInstaller quick-start notes for AIRDROP-X Qt app
+===================================================
+
+This is NOT an executable spec file, but a guide for building one-click
+Windows binaries for the Qt desktop application defined in `qt_app.py`.
+
+Suggested basic command
+-----------------------
+
+Run from the project root:
+
+    pyinstaller --noconfirm --clean ^
+        --name AIRDROP-X ^
+        --windowed ^
+        qt_app.py
+
+Key notes
+---------
+
+- Entry point: `qt_app.py` (creates QApplication and AirdropMainWindow).
+- Required Python packages at build time:
+  - PyQt6
+  - matplotlib
+  - numpy
+- The engine, Monte Carlo, and decision logic are imported as normal
+  Python modules; no special hooks are required for them.
+- If matplotlib backends cause warnings, ensure `matplotlib.backends`
+  is collected by PyInstaller (recent versions handle this automatically).
+
+After running the command, the standalone EXE will be placed under
+`dist/AIRDROP-X/` on Windows.
+
