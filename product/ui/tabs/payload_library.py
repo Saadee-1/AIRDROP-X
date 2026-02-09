@@ -58,7 +58,7 @@ _state = {
     "dimensions_str": None,
 }
 
-_widget_refs = {"bc_ax": None, "fig": None, "payload_drop_ax": None}
+_widget_refs = {"bc_ax": None, "fig": None, "payload_drop_ax": None, "_dropdown_timer": None}
 
 
 def _get_archetype(index):
@@ -419,10 +419,16 @@ def render(ax, fig, interactive=True):
             _state["selected_category"] = label
             _redraw_dropdown(label)
 
-        _timer = fig.canvas.new_timer(interval=50)
-        _timer.single_shot = True
-        _timer.add_callback(_apply)
-        _timer.start()
+        # Defer redraw so it runs after the click handler (avoids backend re-entrancy).
+        try:
+            _timer = fig.canvas.new_timer(interval=50)
+            _timer.single_shot = True
+            _timer.add_callback(_apply)
+            _widget_refs["_dropdown_timer"] = _timer
+            _timer.start()
+        except Exception:
+            # Fallback: run immediately if timer not supported
+            _apply()
 
     main_btn.on_clicked(open_category_dropdown)
 
