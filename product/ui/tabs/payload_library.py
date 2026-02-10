@@ -530,95 +530,84 @@ class PayloadLibraryTab:
             if ax in fig.axes: fig.delaxes(ax)
         self._geom_axes.clear()
         self._geom_buttons.clear()
+        self._widget_refs["dim_tbs"] = {}  # Reset dimension textbox refs
         
-        # We need access to 'center' axes for relative positioning, 
-        # but since 'center' is an inset, we can just use figure coordinates or re-find it?
-        # Better: Use absolute figure coordinates for inputs to ensure they are clickable.
-        # The 'center' panel background is at [0.30, 0.48, 0.26, 0.50]? No, Step 2 is lower.
-        # Let's check original render layout:
-        # Step 1 (Left): [0.02, 0.48, 0.26, 0.50]
-        # Step 2 (Center? No, Visual): [0.30, 0.48, 0.26, 0.50]
-        # Step 3 (Params? No, Right): [0.58, 0.08, 0.40, 0.88]
-        #
-        # WAIT. The previous layout had "Right: Parameters" as a single block.
-        # And "Center: Visual + Metadata".
-        #
-        # The dynamic inputs (Mass, Shape, Dims) should ideally be in the "Parameters" block 
-        # or a new dedicated block. 
-        # Since I'm refactoring, let's put the configuration controls (Mass, Shape, Dims) 
-        # into the "Right" panel (Parameters), replacing the static read-only textboxes.
+        # Right panel content area (panel bg at [0.58, 0.08, 0.40, 0.88])
+        px = 0.60       # left edge of content inside panel
+        pw = 0.36       # usable width
+        row_h = 0.038   # input row height
+        gap = 0.012     # vertical gap between rows
+        sgap = 0.022    # gap between sections
         
-        # Let's target the "Parameters" panel area: [0.58, 0.08, 0.40, 0.88]
-        # We will use this area for: Mass Input, Shape Select, Dimension Inputs, Cd Input.
+        y = 0.87  # start near top of panel
         
-        # Defines
-        panel_x, panel_y, panel_w, panel_h = 0.58, 0.08, 0.40, 0.88
-        
-        # 1. Mass
-        y_cursor = panel_y + panel_h - 0.12
-        ax_lbl = fig.add_axes([panel_x + 0.02, y_cursor, 0.12, 0.04])
+        # ── 1. MASS INPUT ────────────────────────────────────────────────
+        ax_lbl = fig.add_axes([px, y, 0.10, row_h])
         ax_lbl.set_axis_off()
-        ax_lbl.text(0, 0.5, "Mass (kg):", va="center", color=TEXT_PRIMARY, fontsize=9)
+        ax_lbl.text(0, 0.5, "Mass (kg):", va="center", color=TEXT_LABEL, fontsize=8, family="monospace")
         self._geom_axes.append(ax_lbl)
         
-        ax_mass = fig.add_axes([panel_x + 0.15, y_cursor, 0.15, 0.04])
+        ax_mass = fig.add_axes([px + 0.12, y, 0.14, row_h])
         ax_mass.set_facecolor(BG_INPUT)
         for s in ax_mass.spines.values(): s.set_color(ACCENT_GO)
-        tb_mass = TextBox(ax_mass, "", initial=str(self._state["mass"]) if self._state["mass"] is not None else "", textalignment="center")
+        init_mass = str(self._state["mass"]) if self._state["mass"] is not None else ""
+        tb_mass = TextBox(ax_mass, "", initial=init_mass, textalignment="center")
         tb_mass.label.set_color(TEXT_PRIMARY)
         def _on_mass(v):
-            try: self._state["mass"] = float(v); self._update_calculations()
-            except: pass
+            try: self._state["mass"] = float(v); self._update_calculations(); self._refresh_param_display()
+            except Exception: pass
         tb_mass.on_submit(_on_mass)
         self._widget_refs["mass_tb"] = tb_mass
         self._geom_axes.append(ax_mass)
         
-        # 2. Shape Selector
-        y_cursor -= 0.06
-        ax_lbl2 = fig.add_axes([panel_x + 0.02, y_cursor, 0.12, 0.04])
+        # ── 2. SHAPE SELECTOR ────────────────────────────────────────────
+        y -= (row_h + sgap)
+        ax_lbl2 = fig.add_axes([px, y, 0.10, row_h])
         ax_lbl2.set_axis_off()
-        ax_lbl2.text(0, 0.5, "Shape:", va="center", color=TEXT_PRIMARY, fontsize=9)
+        ax_lbl2.text(0, 0.5, "Shape:", va="center", color=TEXT_LABEL, fontsize=8, family="monospace")
         self._geom_axes.append(ax_lbl2)
         
         shapes = ["sphere", "cylinder", "box", "capsule", "blunt_cone"]
-        grid_w, grid_h = 0.09, 0.035
-        gap = 0.005
-        
+        btn_w, btn_h, btn_gap = 0.065, 0.030, 0.004
         curr_shape = self._state["geometry_type"]
         
+        y -= (row_h + 0.005)
         for i, sh in enumerate(shapes):
-            row = i // 3
-            col = i % 3
-            sx = panel_x + 0.08 + col*(grid_w+gap)
-            sy = y_cursor - 0.05 - row*(grid_h+gap)
+            row, col = i // 3, i % 3
+            sx = px + col * (btn_w + btn_gap)
+            sy = y - row * (btn_h + btn_gap)
             
-            ax_s = fig.add_axes([sx, sy, grid_w, grid_h])
+            ax_s = fig.add_axes([sx, sy, btn_w, btn_h])
             is_sel = curr_shape == sh
-            c = ACCENT_GO if is_sel else BG_INPUT
-            bs = Button(ax_s, sh[:4].capitalize(), color=c, hovercolor=ACCENT_GO)
-            bs.label.set_fontsize(7)
+            bg = ACCENT_GO if is_sel else BG_INPUT
+            lbl = sh.replace("_", " ").title()
+            if len(lbl) > 7: lbl = lbl[:6] + "."
+            bs = Button(ax_s, lbl, color=bg, hovercolor=ACCENT_GO)
+            bs.label.set_fontsize(6); bs.label.set_fontfamily("monospace")
             bs.label.set_color("black" if is_sel else TEXT_PRIMARY)
             
             def _mk_sh(s):
                 def _h(ev):
                     self._state["geometry_type"] = s
-                    # Reset dims on shape change? Maybe keep if clear mapping exists, but simpler to reset
                     self._state["dims"] = {}
-                    self._state["drag_coefficient"] = None # Reset Cd
+                    self._state["drag_coefficient"] = None
                     self._update_calculations()
-                    self._rebuild_geometry_ui(fig) # REBUILD UI
+                    self._rebuild_geometry_ui(fig)
                     fig.canvas.draw()
                 return _h
             bs.on_clicked(_mk_sh(sh))
             self._geom_buttons.append(bs)
             self._geom_axes.append(ax_s)
-            
-        # 3. Dimensions
-        y_cursor -= 0.16
+        
+        n_rows = (len(shapes) + 2) // 3
+        y -= n_rows * (btn_h + btn_gap)
+        
+        # ── 3. DIMENSION INPUTS ──────────────────────────────────────────
+        y -= sgap
         if curr_shape:
-            ax_lbl3 = fig.add_axes([panel_x + 0.02, y_cursor, 0.30, 0.04])
+            ax_lbl3 = fig.add_axes([px, y, pw, row_h])
             ax_lbl3.set_axis_off()
-            ax_lbl3.text(0, 0.5, f"Dimensions ({curr_shape}):", va="center", color=TEXT_PRIMARY, fontsize=9)
+            ax_lbl3.text(0, 0.5, f"Dimensions ({curr_shape}):", va="center", color=TEXT_LABEL, fontsize=8, family="monospace")
             self._geom_axes.append(ax_lbl3)
             
             req_dims = []
@@ -626,19 +615,17 @@ class PayloadLibraryTab:
             elif curr_shape in ["cylinder", "capsule", "blunt_cone"]: req_dims = ["radius", "length"]
             elif curr_shape == "box": req_dims = ["length", "width", "height"]
             
-            y_dim = y_cursor - 0.05
-            for k, dim_name in enumerate(req_dims):
-                dy = y_dim - k*0.05
-                ax_d_lbl = fig.add_axes([panel_x + 0.04, dy, 0.08, 0.035])
+            for dim_name in req_dims:
+                y -= (row_h + gap)
+                ax_d_lbl = fig.add_axes([px + 0.02, y, 0.08, row_h])
                 ax_d_lbl.set_axis_off()
-                ax_d_lbl.text(1, 0.5, f"{dim_name.title()}: ", ha="right", va="center", color=TEXT_PRIMARY, fontsize=8)
+                ax_d_lbl.text(1, 0.5, f"{dim_name.title()} (m):", ha="right", va="center", color=TEXT_PRIMARY, fontsize=7, family="monospace")
                 self._geom_axes.append(ax_d_lbl)
                 
-                ax_d = fig.add_axes([panel_x + 0.13, dy, 0.12, 0.035])
+                ax_d = fig.add_axes([px + 0.12, y, 0.14, row_h])
                 ax_d.set_facecolor(BG_INPUT)
                 for s in ax_d.spines.values(): s.set_color(BORDER_SUBTLE)
                 
-                # Get current value (allow string input handling?)
                 val = self._state["dims"].get(dim_name, "")
                 tb_d = TextBox(ax_d, "", initial=str(val), textalignment="center")
                 tb_d.label.set_color(TEXT_PRIMARY)
@@ -648,38 +635,41 @@ class PayloadLibraryTab:
                         try:
                             self._state["dims"][dn] = float(v)
                             self._update_calculations()
-                        except: pass
+                            self._refresh_param_display()
+                        except Exception: pass
                     return _h
                 tb_d.on_submit(_mk_dim(dim_name))
+                # CRITICAL: Store ref to prevent garbage collection
+                self._widget_refs["dim_tbs"][dim_name] = tb_d
                 self._geom_axes.append(ax_d)
-                # Keep ref?
-                
-        # 4. Aerodynamics (Calculated)
-        y_cursor -= (0.20 if curr_shape else 0.05)
         
-        # Area
-        ax_area = fig.add_axes([panel_x + 0.02, y_cursor, 0.36, 0.04])
+        # ── 4. AERODYNAMICS ──────────────────────────────────────────────
+        y -= (row_h + sgap)
+        
+        # Reference Area (read-only)
+        ax_area = fig.add_axes([px, y, pw, row_h])
         ax_area.set_axis_off()
         val_area = self._state["calculated_area"]
         txt = f"Ref Area: {val_area:.4f} m²" if val_area else "Ref Area: —"
-        ax_area.text(0, 0.5, txt, va="center", color=ACCENT_GO, fontsize=9)
+        ax_area.text(0, 0.5, txt, va="center", color=ACCENT_GO, fontsize=8, family="monospace")
         self._widget_refs["calc_area_txt"] = ax_area.texts[0]
         self._geom_axes.append(ax_area)
         
         # Cd Input
-        y_cursor -= 0.05
-        ax_cd_lbl = fig.add_axes([panel_x + 0.02, y_cursor, 0.08, 0.04])
+        y -= (row_h + gap)
+        ax_cd_lbl = fig.add_axes([px, y, 0.10, row_h])
         ax_cd_lbl.set_axis_off()
-        ax_cd_lbl.text(0, 0.5, "Cd:", va="center", color=TEXT_PRIMARY, fontsize=9)
+        ax_cd_lbl.text(0, 0.5, "Cd:", va="center", color=TEXT_LABEL, fontsize=8, family="monospace")
         self._geom_axes.append(ax_cd_lbl)
         
-        ax_cd = fig.add_axes([panel_x + 0.13, y_cursor, 0.12, 0.04])
+        ax_cd = fig.add_axes([px + 0.12, y, 0.14, row_h])
         ax_cd.set_facecolor(BG_INPUT)
         for s in ax_cd.spines.values(): s.set_color(ACCENT_GO)
-        tb_cd = TextBox(ax_cd, "", initial=str(self._state["drag_coefficient"] or ""), textalignment="center")
+        init_cd = str(self._state["drag_coefficient"]) if self._state["drag_coefficient"] else ""
+        tb_cd = TextBox(ax_cd, "", initial=init_cd, textalignment="center")
         def _on_cd(v):
             try: self._state["drag_coefficient"] = float(v); self._update_bc_display()
-            except: pass
+            except Exception: pass
         tb_cd.on_submit(_on_cd)
         self._widget_refs["cd_tb"] = tb_cd
         self._geom_axes.append(ax_cd)
@@ -687,9 +677,9 @@ class PayloadLibraryTab:
         # Uncertainty
         unc = self._state["cd_uncertainty"]
         if unc:
-            ax_u = fig.add_axes([panel_x + 0.26, y_cursor, 0.12, 0.04])
+            ax_u = fig.add_axes([px + 0.28, y, 0.08, row_h])
             ax_u.set_axis_off()
-            ax_u.text(0, 0.5, f"±{unc}", va="center", color="gray", fontsize=8)
+            ax_u.text(0, 0.5, f"±{unc}", va="center", color="gray", fontsize=7, family="monospace")
             self._geom_axes.append(ax_u)
             
         # BC Display at bottom
@@ -699,28 +689,34 @@ class PayloadLibraryTab:
         ax.set_axis_off()
         ax.set_facecolor(BG_MAIN); fig.patch.set_facecolor(BG_MAIN)
         self._widget_refs["fig"] = fig
+        self._widget_refs["_buttons"] = []  # Keep button refs alive
         
         has_sel = self._state["selected_index"] >= 0
 
         # =====================================================================
-        # LAYOUT — Three-column grid with consistent alignment
-        # LEFT:   Identity + Dropdown    [0.02, 0.08, 0.26, 0.88]
-        # CENTER: Analysis (top) + BC (bottom)
-        # RIGHT:  Physics Parameters      [0.58, 0.08, 0.40, 0.88]
+        # LAYOUT — Clean 3-column grid, all panels share same top/bottom
+        #   COL-1 (LEFT):   [0.02, 0.15, 0.26, 0.82]  Identity + Dropdown
+        #   COL-2 (CENTER): top [0.30, 0.50, 0.26, 0.47]  Analysis
+        #                   bot [0.30, 0.15, 0.26, 0.33]  Ballistic Coeff
+        #   COL-3 (RIGHT):  [0.58, 0.15, 0.40, 0.82]  Physics Parameters
         # =====================================================================
 
-        # --- LEFT: Identity ---
-        left = ax.inset_axes([0.02, 0.08, 0.26, 0.88])
+        top_y = 0.15   # shared bottom for all panels
+        top_h = 0.82   # shared height for full panels
+
+        # ── LEFT: Identity ───────────────────────────────────────────────
+        left = ax.inset_axes([0.02, top_y, 0.26, top_h])
         left.set_facecolor(BG_PANEL); left.set_axis_off()
         left.add_patch(mpatches.Rectangle((0,0),1,1, linewidth=1, edgecolor=BORDER_SUBTLE, facecolor="none", transform=left.transAxes))
-        left.text(0.5, 0.97, "STEP 1: IDENTITY", transform=left.transAxes, fontsize=9, color=TEXT_LABEL, ha="center", va="top")
+        left.text(0.5, 0.97, "STEP 1: IDENTITY", transform=left.transAxes, fontsize=8, color=TEXT_LABEL, ha="center", va="top", family="monospace")
         
-        # Main Dropdown Button (inside left panel area)
-        btn_ax = fig.add_axes([0.04, 0.82, 0.22, 0.055])
+        # Dropdown button (figure coords, inside left panel)
+        btn_ax = fig.add_axes([0.04, 0.84, 0.22, 0.05])
         btn_ax.set_facecolor(BG_INPUT)
         curr = _get_archetype(self._state["selected_index"])["name"] if has_sel else "Select Payload..."
-        main_btn = Button(btn_ax, f"  {curr}  \u25BC  ", color=BG_INPUT, hovercolor=BG_PANEL)
-        main_btn.label.set_color(TEXT_PRIMARY); main_btn.label.set_fontsize(8)
+        main_btn = Button(btn_ax, f"  {curr}  \u25BC", color=BG_INPUT, hovercolor=BG_PANEL)
+        main_btn.label.set_color(TEXT_PRIMARY); main_btn.label.set_fontsize(8); main_btn.label.set_fontfamily("monospace")
+        self._widget_refs["_buttons"].append(main_btn)
         
         def _toggle_dd(ev):
             if not interactive: return
@@ -735,78 +731,80 @@ class PayloadLibraryTab:
 
         main_btn.on_clicked(_toggle_dd)
 
-        # Description Text
+        # Selection info
         if has_sel:
              p = _get_archetype(self._state["selected_index"])
-             left.text(0.5, 0.30, p["notes"], transform=left.transAxes, ha="center", fontsize=8, color=TEXT_PRIMARY, wrap=True)
-             left.text(0.5, 0.15, p.get("category", ""), transform=left.transAxes, ha="center", fontsize=7, color=ACCENT_GO)
+             left.text(0.5, 0.28, p["notes"], transform=left.transAxes, ha="center", fontsize=7, color=TEXT_PRIMARY, wrap=True, family="monospace")
+             left.text(0.5, 0.12, p.get("category", ""), transform=left.transAxes, ha="center", fontsize=6, color=ACCENT_GO, family="monospace")
+             left.text(0.5, 0.05, p.get("subcategory", ""), transform=left.transAxes, ha="center", fontsize=6, color="gray", family="monospace")
 
-        # --- CENTER TOP: Analysis / Warnings ---
-        vis = ax.inset_axes([0.30, 0.48, 0.26, 0.48])
+        # ── CENTER TOP: Analysis ─────────────────────────────────────────
+        vis = ax.inset_axes([0.30, 0.50, 0.26, 0.47])
         vis.set_facecolor(BG_PANEL); vis.set_axis_off()
         vis.add_patch(mpatches.Rectangle((0,0),1,1, linewidth=1, edgecolor=BORDER_SUBTLE, facecolor="none", transform=vis.transAxes))
-        vis.text(0.5, 0.96, "ANALYSIS", transform=vis.transAxes, fontsize=9, color=TEXT_LABEL, ha="center")
+        vis.text(0.5, 0.95, "ANALYSIS", transform=vis.transAxes, fontsize=8, color=TEXT_LABEL, ha="center", family="monospace")
         
         if has_sel:
             p = _get_archetype(self._state["selected_index"])
-            vis.text(0.5, 0.80, p["description"], transform=vis.transAxes, ha="center", va="center", fontsize=8, color=TEXT_PRIMARY, wrap=True)
+            vis.text(0.5, 0.78, p["description"], transform=vis.transAxes, ha="center", va="center", fontsize=7, color=TEXT_PRIMARY, wrap=True)
             
-            # Validation Warnings
             warn_y = 0.55
             rho = self._state.get("calculated_density")
             if rho:
                 if rho < 10: 
-                    vis.text(0.5, warn_y, "WARNING: Low Density (<10 kg/m³)", color="orange", ha="center", fontsize=7); warn_y -= 0.12
+                    vis.text(0.5, warn_y, "⚠ Low Density (<10 kg/m³)", color="orange", ha="center", fontsize=7); warn_y -= 0.12
                 elif rho > 20000:
-                    vis.text(0.5, warn_y, "WARNING: High Density (>20k kg/m³)", color="red", ha="center", fontsize=7); warn_y -= 0.12
+                    vis.text(0.5, warn_y, "⚠ High Density (>20k kg/m³)", color="red", ha="center", fontsize=7); warn_y -= 0.12
                 else:
-                    vis.text(0.5, warn_y, f"Density: {rho:.1f} kg/m³ (OK)", color="gray", ha="center", fontsize=7); warn_y -= 0.12
+                    vis.text(0.5, warn_y, f"Density: {rho:.1f} kg/m³ ✓", color="gray", ha="center", fontsize=7); warn_y -= 0.12
             
             cfg = self.get_payload_config()
             bc = cfg["ballistic_coefficient"]
             if bc is not None and float(bc) > 1000:
-                 vis.text(0.5, warn_y, "WARNING: Kinetic Penetrator (BC > 1000)", color="red", ha="center", fontsize=7)
+                 vis.text(0.5, warn_y, "⚠ Kinetic Penetrator (BC > 1000)", color="red", ha="center", fontsize=7)
+        else:
+            vis.text(0.5, 0.50, "No payload selected", transform=vis.transAxes, ha="center", color="gray", fontsize=8)
 
-        # --- RIGHT: Parameters (Dynamic) ---
-        param_bg = ax.inset_axes([0.58, 0.08, 0.40, 0.88])
+        # ── RIGHT: Physics Parameters ────────────────────────────────────
+        param_bg = ax.inset_axes([0.58, top_y, 0.40, top_h])
         param_bg.set_facecolor(BG_PANEL); param_bg.set_axis_off()
         param_bg.add_patch(mpatches.Rectangle((0,0),1,1, linewidth=1, edgecolor=BORDER_SUBTLE, facecolor="none", transform=param_bg.transAxes))
-        param_bg.text(0.5, 0.97, "STEP 2 & 3: PHYSICS", transform=param_bg.transAxes, fontsize=9, color=TEXT_LABEL, ha="center", va="top")
+        param_bg.text(0.5, 0.97, "STEP 2 & 3: PHYSICS", transform=param_bg.transAxes, fontsize=8, color=TEXT_LABEL, ha="center", va="top", family="monospace")
         
-        # --- CENTER BOTTOM: Ballistic Coefficient ---
-        bc_bg = ax.inset_axes([0.30, 0.08, 0.26, 0.38])
+        # ── CENTER BOTTOM: Ballistic Coefficient ─────────────────────────
+        bc_bg = ax.inset_axes([0.30, top_y, 0.26, 0.33])
         bc_bg.set_facecolor(BG_PANEL); bc_bg.set_axis_off()
         bc_bg.add_patch(mpatches.Rectangle((0,0),1,1, linewidth=1, edgecolor=BORDER_SUBTLE, facecolor="none", transform=bc_bg.transAxes))
-        bc_bg.text(0.5, 0.90, "BALLISTIC COEFF", transform=bc_bg.transAxes, fontsize=9, color=TEXT_LABEL, ha="center")
+        bc_bg.text(0.5, 0.92, "BALLISTIC COEFF", transform=bc_bg.transAxes, fontsize=8, color=TEXT_LABEL, ha="center", family="monospace")
         
-        # BC Value
-        ax_bc_val = fig.add_axes([0.30, 0.15, 0.26, 0.23])
+        # BC Value axis
+        ax_bc_val = fig.add_axes([0.32, 0.22, 0.22, 0.18])
         ax_bc_val.set_axis_off()
         self._widget_refs["bc_ax"] = ax_bc_val
 
-        # Buttons Row (Save / Run) — inside BC panel
+        # ── Bottom Buttons (Save / Run Sim) ──────────────────────────────
         if interactive:
-            # Save
-            ax_save = fig.add_axes([0.31, 0.09, 0.11, 0.045])
+            ax_save = fig.add_axes([0.31, 0.16, 0.11, 0.04])
             btn_save = Button(ax_save, "Save", color=BG_INPUT, hovercolor=ACCENT_GO)
-            btn_save.label.set_color(TEXT_PRIMARY); btn_save.label.set_fontsize(8)
+            btn_save.label.set_color(TEXT_PRIMARY); btn_save.label.set_fontsize(7); btn_save.label.set_fontfamily("monospace")
             btn_save.on_clicked(lambda ev: self._save_config())
+            self._widget_refs["_buttons"].append(btn_save)
             
-            # Run Sim
-            ax_run = fig.add_axes([0.43, 0.09, 0.12, 0.045])
+            ax_run = fig.add_axes([0.43, 0.16, 0.12, 0.04])
             col_run = "#005500" if run_simulation_callback else "#333333"
             btn_run = Button(ax_run, "RUN SIM", color=col_run, hovercolor=ACCENT_GO)
-            btn_run.label.set_color("white"); btn_run.label.set_fontsize(8); btn_run.label.set_weight("bold")
+            btn_run.label.set_color("white"); btn_run.label.set_fontsize(7); btn_run.label.set_weight("bold"); btn_run.label.set_fontfamily("monospace")
             if run_simulation_callback:
                 btn_run.on_clicked(lambda ev: run_simulation_callback(self.get_payload_config()))
+            self._widget_refs["_buttons"].append(btn_run)
 
-        # Initial Build of Dynamic UI
+        # Build dynamic geometry UI or show placeholder
         if has_sel:
             self._rebuild_geometry_ui(fig)
         else:
-            ax_ph = fig.add_axes([0.60, 0.45, 0.36, 0.1])
+            ax_ph = fig.add_axes([0.62, 0.48, 0.34, 0.08])
             ax_ph.set_axis_off()
-            ax_ph.text(0.5, 0.5, "Select a payload identity to configure.", ha="center", color="gray", fontsize=9)
+            ax_ph.text(0.5, 0.5, "Select a payload identity to configure.", ha="center", color="gray", fontsize=8, family="monospace")
             self._geom_axes.append(ax_ph)
 
 # Global singleton instance for backward compatibility with `render` shim
