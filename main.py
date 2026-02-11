@@ -1,3 +1,7 @@
+import sys
+import os
+import subprocess
+
 from configs import mission_configs as cfg
 from src import decision_logic
 from product.payloads.payload_base import Payload
@@ -71,30 +75,108 @@ def run_simulation(payload_config=None):
     return impact_points, advisory_result, P_hit, cep50
 
 
-def main():
-    """Entry point: run simulation and launch UI."""
-    impacts, adv, p_hit, cep50 = run_simulation()
+def _wait_for_streamlit(port=8501, timeout=30):
+    """Poll until Streamlit server responds."""
+    import urllib.request
+    import time
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}", timeout=2)
+            return True
+        except Exception:
+            time.sleep(0.3)
+    return False
 
-    launch_unified_ui(
-        impact_points=impacts,
-        P_hit=p_hit,
-        cep50=cep50,
-        target_position=cfg.target_pos,
-        target_radius=cfg.target_radius,
-        mission_state=None,
-        advisory_result=adv,
-        initial_threshold_percent=cfg.THRESHOLD_SLIDER_INIT,
-        initial_mode="standard",
-        slider_min=cfg.THRESHOLD_SLIDER_MIN,
-        slider_max=cfg.THRESHOLD_SLIDER_MAX,
-        slider_step=cfg.THRESHOLD_SLIDER_STEP,
-        mode_thresholds=cfg.MODE_THRESHOLDS,
-        on_threshold_change=lambda x: None,
-        random_seed=cfg.RANDOM_SEED,
-        n_samples=cfg.n_samples,
-        dt=cfg.dt,
-        run_simulation_callback=run_simulation,
+
+def _launch_desktop_ui():
+    """Launch Streamlit UI in a desktop window — same look as browser, native window."""
+    import webview
+
+    app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.py")
+    if not os.path.isfile(app_path):
+        print("app.py not found.")
+        return False
+
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "streamlit", "run", app_path,
+            "--server.headless", "true",
+            "--server.port", "8501",
+            "--browser.gatherUsageStats", "false",
+        ],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
+
+    try:
+        if not _wait_for_streamlit(8501):
+            proc.terminate()
+            print("Streamlit server did not start in time.")
+            return False
+
+        webview.create_window("AIRDROP-X", "http://127.0.0.1:8501", width=1280, height=800)
+        webview.start()
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+    return True
+
+
+def _launch_browser_ui():
+    """Launch Streamlit in default browser (for debugging)."""
+    app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.py")
+    if not os.path.isfile(app_path):
+        print("app.py not found.")
+        return False
+    subprocess.run(
+        [sys.executable, "-m", "streamlit", "run", app_path],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+    )
+    return True
+
+
+def main():
+    """Entry point: run simulation and launch UI.
+    Default: desktop window with Streamlit UI (same as browser).
+    Use --browser to open in default browser. Use --matplotlib for legacy Matplotlib UI.
+    """
+    use_matplotlib = "--matplotlib" in sys.argv
+    use_browser = "--browser" in sys.argv
+
+    if use_matplotlib:
+        impacts, adv, p_hit, cep50 = run_simulation()
+        launch_unified_ui(
+            impact_points=impacts,
+            P_hit=p_hit,
+            cep50=cep50,
+            target_position=cfg.target_pos,
+            target_radius=cfg.target_radius,
+            mission_state=None,
+            advisory_result=adv,
+            initial_threshold_percent=cfg.THRESHOLD_SLIDER_INIT,
+            initial_mode="standard",
+            slider_min=cfg.THRESHOLD_SLIDER_MIN,
+            slider_max=cfg.THRESHOLD_SLIDER_MAX,
+            slider_step=cfg.THRESHOLD_SLIDER_STEP,
+            mode_thresholds=cfg.MODE_THRESHOLDS,
+            on_threshold_change=lambda x: None,
+            random_seed=cfg.RANDOM_SEED,
+            n_samples=cfg.n_samples,
+            dt=cfg.dt,
+            run_simulation_callback=run_simulation,
+        )
+    elif use_browser:
+        print("Launching AIRDROP-X in browser.")
+        _launch_browser_ui()
+    else:
+        print("Launching AIRDROP-X in desktop window (same UI as browser). Use --browser for browser, --matplotlib for legacy UI.")
+        _launch_desktop_ui()
 
 
 if __name__ == "__main__":
