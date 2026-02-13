@@ -7,14 +7,15 @@ import matplotlib.patches as mpatches
 
 # Import unified military-grade theme
 from product.ui.ui_theme import (
-    BG_MAIN, BG_PANEL,
-    TEXT_PRIMARY, TEXT_LABEL,
-    ACCENT_GO, ACCENT_WARN,
+    BG_MAIN,
+    BG_PANEL,
+    TEXT_PRIMARY,
+    ACCENT_GO,
+    ACCENT_WARN,
     BORDER_SUBTLE,
-    FONT_FAMILY, FONT_SIZE_H3, FONT_SIZE_BODY, FONT_SIZE_CAPTION
 )
 from product.guidance.numerical_diagnostics import quick_stability_check
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 def _defaults() -> Dict[str, Any]:
@@ -23,18 +24,26 @@ def _defaults() -> Dict[str, Any]:
         "system_name": "AIRDROP-X",
         "version": "1.1",
         "build_id": "—",
-        "physics_description": "3-DOF point-mass; gravity -Z; quadratic drag (v_rel); explicit Euler.",
-        "mc_description": "One wind sample per trajectory; Gaussian uncertainty; fixed seed.",
+        "physics_description": (
+            "3-DOF point-mass; gravity -Z; quadratic drag (v_rel); explicit "
+            "Euler."
+        ),
+        "mc_description": (
+            "One wind sample per trajectory; Gaussian uncertainty; fixed seed."
+        ),
         "random_seed": None,
         "n_samples": None,
-        "uncertainty_model": "Gaussian wind (mean + std), one sample per trajectory.",
+        "uncertainty_model": (
+            "Gaussian wind (mean + std), one sample per trajectory."
+        ),
         "dt": None,
         "snapshot_created_at": None,
         "limitations": [
             "Point-mass payload; no rotation or attitude dynamics.",
             "2D target (X–Y); impact at Z=0 only.",
             "Uniform atmosphere (constant rho); no wind shear or gusts.",
-            "Wind uncertainty: isotropic Gaussian; no spatial/temporal correlation.",
+            "Wind uncertainty: isotropic Gaussian; no spatial/temporal "
+            "correlation.",
             "Single release point per run; no multi-drop or sequencing.",
             "Model Validity Envelope (Confidence > 90%):",
             "  · Altitude (AGL): 150 ft to 12,000 ft",
@@ -42,7 +51,8 @@ def _defaults() -> Dict[str, Any]:
             "  · Payload Mass: 1 kg to 500 kg",
             "  · Descent Rate: < 50 m/s (subsonic)",
             "Confidence decreases primarily due to environmental uncertainty,",
-            "specifically local wind field variance not captured by single-point sampling.",
+            "specifically local wind field variance not captured by "
+            "single-point sampling.",
         ],
         "warnings": ["No active warnings."],
     }
@@ -74,22 +84,50 @@ def render(ax, **kwargs):
     gap = 0.012
     y_start = 0.98
 
-    def section(title, y_curr, content_lines, line_height=0.12, title_color=None):
+    def section(
+        title, y_curr, content_lines, line_height=0.12, title_color=None
+    ):
         box = ax.inset_axes([panel_left, y_curr - row_h, panel_width, row_h])
         box.set_axis_off()
         box.set_facecolor(BG_PANEL)
         box.set_xlim(0, 1)
         box.set_ylim(0, 1)
-        box.add_patch(mpatches.Rectangle((0.02, 0.02), 0.96, 0.96, linewidth=1,
-                    edgecolor=BORDER_SUBTLE, facecolor="none", transform=box.transAxes))
-        box.text(0.5, 0.96, title, transform=box.transAxes, fontsize=9,
-                 color=title_color or ACCENT_GO, ha="center", va="top", family="monospace")
+        box.add_patch(
+            mpatches.Rectangle(
+                (0.02, 0.02),
+                0.96,
+                0.96,
+                linewidth=1,
+                edgecolor=BORDER_SUBTLE,
+                facecolor="none",
+                transform=box.transAxes,
+            )
+        )
+        box.text(
+            0.5,
+            0.96,
+            title,
+            transform=box.transAxes,
+            fontsize=9,
+            color=title_color or ACCENT_GO,
+            ha="center",
+            va="top",
+            family="monospace",
+        )
         yy = 0.80
         for line in content_lines:
             if yy < 0.05:
                 break
-            box.text(0.04, yy, line[:95], transform=box.transAxes, fontsize=8,
-                     color=TEXT_PRIMARY, va="top", family="monospace")
+            box.text(
+                0.04,
+                yy,
+                line[:95],
+                transform=box.transAxes,
+                fontsize=8,
+                color=TEXT_PRIMARY,
+                va="top",
+                family="monospace",
+            )
             yy -= line_height
         return y_curr - row_h - gap
 
@@ -108,7 +146,11 @@ def render(ax, **kwargs):
     created = d.get("snapshot_created_at")
     created_str = _fmt(created)
     repro_lines = [
-        f"Random seed: {_fmt(d['random_seed'])}   Sample count: {_fmt(d['n_samples'])}   Time step: {_fmt(d['dt'])} s",
+        (
+            f"Random seed: {_fmt(d['random_seed'])}   "
+            f"Sample count: {_fmt(d['n_samples'])}   "
+            f"Time step: {_fmt(d['dt'])} s"
+        ),
         "Uncertainty: " + str(d["uncertainty_model"] or "—"),
         f"Snapshot created at: {created_str}",
     ]
@@ -131,7 +173,9 @@ def render(ax, **kwargs):
     ]
     try:
         if dt is not None and seed is not None:
-            stab = quick_stability_check(random_seed=int(seed), dt=float(dt), samples=5)
+            stab = quick_stability_check(
+                random_seed=int(seed), dt=float(dt), samples=5
+            )
             status = stab["status"]
             rel = stab["relative_error"] * 100.0
             stability_lines = [
@@ -148,5 +192,13 @@ def render(ax, **kwargs):
     warnings = d.get("warnings") or []
     if not warnings:
         warnings = ["No active warnings."]
-    warn_lines = [("  ⚠ " if i == 0 else "  · ") + w for i, w in enumerate(warnings)]
-    y = section("WARNINGS / STATUS", y, warn_lines, line_height=0.12, title_color=ACCENT_WARN)
+    warn_lines = [
+        ("  ⚠ " if i == 0 else "  · ") + w for i, w in enumerate(warnings)
+    ]
+    y = section(
+        "WARNINGS / STATUS",
+        y,
+        warn_lines,
+        line_height=0.12,
+        title_color=ACCENT_WARN,
+    )

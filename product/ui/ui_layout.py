@@ -14,9 +14,11 @@ from .tabs import system_status
 
 # Import unified military-grade theme
 from product.ui.ui_theme import (
-    BG_PANEL, TEXT_PRIMARY, BUTTON_HOVER,
-    TAB_WIDTH, TAB_HEIGHT, TAB_GAP
+    BG_PANEL,
+    TEXT_PRIMARY,
+    BUTTON_HOVER,
 )
+
 
 def _make_tab_buttons(fig, n_tabs, on_tab_click):
     """Create a row of tab button axes; return list of Button widgets."""
@@ -27,7 +29,9 @@ def _make_tab_buttons(fig, n_tabs, on_tab_click):
         ax = fig.add_axes([left + i * (width + gap), bottom, width, height])
         ax.set_facecolor(BG_PANEL)
         ax.set_axis_off()
-        btn = Button(ax, tabs.TABS[i][0], color=BG_PANEL, hovercolor=BUTTON_HOVER)
+        btn = Button(
+            ax, tabs.TABS[i][0], color=BG_PANEL, hovercolor=BUTTON_HOVER
+        )
         btn.label.set_color(TEXT_PRIMARY)
         btn.label.set_fontsize(9)
         btn.on_clicked(lambda event, idx=i: on_tab_click(idx))
@@ -101,7 +105,11 @@ def launch_unified_ui(
             mission_overview.render(content_ax, **mission_data)
         elif index == 1:
             # Pass callback if provided
-            payload_library.render(content_ax, fig, run_simulation_callback=run_simulation_callback)
+            payload_library.render(
+                content_ax,
+                fig,
+                run_simulation_callback=run_simulation_callback,
+            )
         elif index == 2:
             tabs.TABS[2][1](
                 content_ax,

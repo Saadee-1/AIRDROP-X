@@ -6,8 +6,9 @@ GRAVITY_MAGNITUDE = 9.81
 def propagate_payload(pos0, vel0, mass, Cd, A, rho, wind, dt):
     """
     3-DOF point-mass in inertial frame. X forward, Y lateral, Z up.
-    Gravity constant in -Z. Drag = -0.5*rho*Cd*A*|v_rel|*v_rel, v_rel = vel - wind.
-    Explicit Euler. Stops when z <= 0. Returns trajectory (N, 3).
+    Gravity constant in -Z. Drag = -0.5*rho*Cd*A*|v_rel|*v_rel,
+    v_rel = vel - wind. Semi-Implicit (Symplectic) Euler. Stops when z <= 0.
+    Returns trajectory (N, 3).
     """
     pos = np.array(pos0, dtype=float).copy()
     vel = np.array(vel0, dtype=float).copy()

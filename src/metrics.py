@@ -25,8 +25,8 @@ def compute_hit_probability(impact_points, target_position, target_radius):
 
 def compute_cep50(impact_points, target_position):
     """
-    CEP50: 50th percentile of radial miss distance from target. Inputs must not be empty.
-    Returns CEP50 radius in same units as inputs.
+    CEP50: 50th percentile of radial miss distance from target.
+    Inputs must not be empty. Returns CEP50 radius in same units as inputs.
     """
     impact_points = np.asarray(impact_points, dtype=float)
     target_position = np.asarray(target_position, dtype=float)
@@ -42,7 +42,8 @@ def compute_cep50(impact_points, target_position):
 def compute_impact_velocity_stats(impact_speeds):
     """
     Aggregate impact velocity statistics from Monte Carlo samples.
-    Returns dict with mean_impact_speed, std_impact_speed, p95_impact_speed (m/s).
+    Returns dict with mean_impact_speed, std_impact_speed,
+    p95_impact_speed (m/s).
     """
     impact_speeds = np.asarray(impact_speeds, dtype=float)
     if impact_speeds.size == 0:
@@ -99,5 +100,7 @@ def compute_confidence_index(
             is_fresh = False
     telemetry_factor = 1.0 if is_fresh else 0.5
 
-    confidence = (wind_factor + bc_factor + altitude_factor + telemetry_factor) / 4.0
+    confidence = (
+        wind_factor + bc_factor + altitude_factor + telemetry_factor
+    ) / 4.0
     return _clamp(confidence)

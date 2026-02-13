@@ -18,7 +18,7 @@ BG_INPUT = "#1c201c"       # Input fields, text boxes
 
 # --- TEXT HIERARCHY ---
 TEXT_PRIMARY = "#e0ece0"   # Primary text (high contrast)
-TEXT_SECONDARY = "#c0d0c0" # Secondary text (medium contrast)
+TEXT_SECONDARY = "#c0d0c0"  # Secondary text (medium contrast)
 TEXT_LABEL = "#6b8e6b"     # Labels, hints, muted text
 
 # --- ACCENT COLORS ---

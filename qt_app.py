@@ -27,7 +27,6 @@ from PyQt6.QtWidgets import (
 )
 
 from configs import mission_configs as cfg
-from src import decision_logic
 from src import metrics
 from product.payloads.payload_base import Payload
 from product.missions.target_manager import Target
@@ -89,7 +88,12 @@ def run_simulation_from_config(
         uav_velocity=uav_vel,
     )
     # Engine call: Monte Carlo and metrics.
-    impact_points, P_hit, cep50, impact_velocity_stats = get_impact_points_and_metrics(
+    (
+        impact_points,
+        P_hit,
+        cep50,
+        impact_velocity_stats,
+    ) = get_impact_points_and_metrics(
         mission_state,
         random_seed,
     )
@@ -125,7 +129,9 @@ def run_simulation_from_config(
         "wind_mean": cfg.wind_mean,
         "wind_std": cfg.wind_std,
         "mode_thresholds": cfg.MODE_THRESHOLDS,
-        "telemetry_source": telemetry_frame.source if telemetry_frame else "config_default",
+        "telemetry_source": (
+            telemetry_frame.source if telemetry_frame else "config_default"
+        ),
     }
 
     results: Dict[str, Any] = {
@@ -224,7 +230,9 @@ class AirdropMainWindow(QMainWindow):
         """(Re)build all tabs from the current snapshot."""
         assert self._tabs is not None
         self._tabs.clear()
-        self._tabs.addTab(self._make_mission_overview_tab(), "Mission Overview")
+        self._tabs.addTab(
+            self._make_mission_overview_tab(), "Mission Overview"
+        )
         self._tabs.addTab(self._make_payload_tab(), "Payload Library")
         self._tabs.addTab(self._make_sensor_tab(), "Sensor & Telemetry")
         self._tabs.addTab(self._make_analysis_tab(), "Analysis")
@@ -280,20 +288,24 @@ class AirdropMainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "No Telemetry Available",
-                    "No telemetry frame found in StateBuffer. Using config defaults for UAV position and velocity.",
+                    "No telemetry frame found in StateBuffer. Using config "
+                    "defaults for UAV position and velocity.",
                 )
             elif self._telemetry_buffer.is_stale(max_age_seconds=5.0):
                 QMessageBox.warning(
                     self,
                     "Stale Telemetry",
-                    f"Latest telemetry frame is stale (>5 seconds old). Using config defaults for UAV position and velocity.\n\n"
+                    f"Latest telemetry frame is stale (>5 seconds old). Using "
+                    f"config defaults for UAV position and velocity.\n\n"
                     f"Telemetry source: {telemetry_frame.source}\n"
                     f"Telemetry timestamp: {telemetry_frame.timestamp:.2f} s",
                 )
                 telemetry_frame = None  # Ignore stale telemetry.
 
         # New immutable snapshot from the engine (with or without telemetry).
-        self._snapshot = run_simulation_from_config(seed, telemetry_frame=telemetry_frame)
+        self._snapshot = run_simulation_from_config(
+            seed, telemetry_frame=telemetry_frame
+        )
         # Rebuild all tabs from the new snapshot.
         self._build_tabs()
         self._update_snapshot_banner()
@@ -315,6 +327,11 @@ class AirdropMainWindow(QMainWindow):
 
     def _make_mission_overview_tab(self) -> QWidget:
         fig = qt_bridge.create_figure()
+        rp = (
+            self._results["mission_state"].uav_position[:2]
+            if self._results.get("mission_state")
+            else None
+        )
         mission_data = {
             "decision": self._results["advisory_result"].current_feasibility,
             "target_hit_percentage": self._results["P_hit"] * 100.0,
@@ -325,10 +342,12 @@ class AirdropMainWindow(QMainWindow):
             "target_position": self._results["target_position"],
             "target_radius": self._results["target_radius"],
             "confidence_index": self._results.get("confidence_index"),
-            "release_point": self._results["mission_state"].uav_position[:2] if self._results.get("mission_state") else None,
+            "release_point": rp,
             "wind_vector": self._cfg.get("wind_mean", (0.0, 0.0))[:2],
         }
-        qt_bridge.render_into_single_axes(fig, mission_overview.render, **mission_data)
+        qt_bridge.render_into_single_axes(
+            fig, mission_overview.render, **mission_data
+        )
         return self._wrap_canvas(fig)
 
     def _make_payload_tab(self) -> QWidget:
@@ -358,18 +377,29 @@ class AirdropMainWindow(QMainWindow):
 
     def _make_analysis_tab(self) -> QWidget:
         fig = qt_bridge.create_figure()
+        uav_pos = (
+            self._results["mission_state"].uav_position
+            if self._results.get("mission_state")
+            else None
+        )
         analysis_kwargs = {
             "impact_points": self._results["impact_points"],
             "target_position": self._results["target_position"],
             "target_radius": self._results["target_radius"],
-            "uav_position": self._results["mission_state"].uav_position if self._results.get("mission_state") else None,
+            "uav_position": uav_pos,
             "wind_mean": self._cfg.get("wind_mean"),
             "cep50": self._results["cep50"],
             "target_hit_percentage": self._results["P_hit"] * 100.0,
-            "impact_velocity_stats": self._results.get("impact_velocity_stats"),
-            "max_safe_impact_speed": self._results.get("max_safe_impact_speed"),
+            "impact_velocity_stats": self._results.get(
+                "impact_velocity_stats"
+            ),
+            "max_safe_impact_speed": self._results.get(
+                "max_safe_impact_speed"
+            ),
         }
-        qt_bridge.render_into_single_axes(fig, analysis.render, **analysis_kwargs)
+        qt_bridge.render_into_single_axes(
+            fig, analysis.render, **analysis_kwargs
+        )
         return self._wrap_canvas(fig)
 
     def _make_system_status_tab(self) -> QWidget:
@@ -400,9 +430,15 @@ class AirdropMainWindow(QMainWindow):
             # Combine: existing warnings + telemetry health warnings.
             all_warnings = existing_warnings + health_warnings
         else:
-            all_warnings = existing_warnings if existing_warnings else ["No active warnings."]
+            all_warnings = (
+                existing_warnings
+                if existing_warnings
+                else ["No active warnings."]
+            )
         status_kwargs["warnings"] = all_warnings
-        qt_bridge.render_into_single_axes(fig, system_status.render, **status_kwargs)
+        qt_bridge.render_into_single_axes(
+            fig, system_status.render, **status_kwargs
+        )
 
         canvas = qt_bridge.create_canvas(fig)
 
