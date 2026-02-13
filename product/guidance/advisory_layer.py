@@ -209,19 +209,23 @@ def evaluate_advisory(
 
     if best_P > P_hit_current and worst_P < P_hit_current:
         trend_summary = (
-            "Feasibility varies with direction. Some nearby positions are better, some worse."
+            "Feasibility varies with direction. Some nearby positions are "
+            "better, some worse."
         )
     elif best_P > P_hit_current:
         trend_summary = (
-            "Feasibility improves at least in one direction from the current position."
+            "Feasibility improves at least in one direction from the current "
+            "position."
         )
     elif worst_P < P_hit_current:
         trend_summary = (
-            "Feasibility degrades in all sampled directions from the current position."
+            "Feasibility degrades in all sampled directions from the current "
+            "position."
         )
     else:
         trend_summary = (
-            "Feasibility is similar in all sampled directions; no strong trend."
+            "Feasibility is similar in all sampled directions; no strong "
+            "trend."
         )
 
     improvement_directions = []
@@ -245,11 +249,14 @@ def evaluate_advisory(
 
     if improvement_directions:
         suggested_direction = (
-            "Consider moving " + " or ".join(improvement_directions) + " for higher hit probability."
+            "Consider moving "
+            + " or ".join(improvement_directions)
+            + " for higher hit probability."
         )
     else:
         suggested_direction = (
-            "No strong directional recommendation from nearby samples; current position is among the best."
+            "No strong directional recommendation from nearby samples; current "
+            "position is among the best."
         )
 
     return AdvisoryResult(

@@ -25,23 +25,34 @@ def parse_uav_state(raw):
     if isinstance(p, (list, tuple)) and len(p) >= 3:
         pos = (float(p[0]), float(p[1]), float(p[2]))
     elif isinstance(p, dict):
-        pos = (float(p.get("x", 0)), float(p.get("y", 0)), float(p.get("z", p.get("altitude", 0))))
+        pos = (
+            float(p.get("x", 0)),
+            float(p.get("y", 0)),
+            float(p.get("z", p.get("altitude", 0))),
+        )
     else:
         pos = (
             float(raw.get("x", 0)),
             float(raw.get("y", 0)),
             float(raw.get("z", raw.get("altitude", 0))),
         )
-    
+
     # Advisory range check (telemetry might be valid but extreme)
     if pos[2] < -500.0:
-        print(f"[TELEM WARNING] Altitude {pos[2]:.1f} m is very low (<-500m). Check coordinate frame (NED vs ENU).")
+        print(
+            f"[TELEM WARNING] Altitude {pos[2]:.1f} m is very low (<-500m). "
+            f"Check coordinate frame (NED vs ENU)."
+        )
 
     v = raw.get("velocity")
     if isinstance(v, (list, tuple)) and len(v) >= 3:
         vel = (float(v[0]), float(v[1]), float(v[2]))
     elif isinstance(v, dict):
-        vel = (float(v.get("vx", 0)), float(v.get("vy", 0)), float(v.get("vz", 0)))
+        vel = (
+            float(v.get("vx", 0)),
+            float(v.get("vy", 0)),
+            float(v.get("vz", 0)),
+        )
     else:
         vel = (
             float(raw.get("vx", 0)),
@@ -50,9 +61,12 @@ def parse_uav_state(raw):
         )
 
     # Advisory velocity check (supersonic?)
-    speed_sq = vel[0]*vel[0] + vel[1]*vel[1] + vel[2]*vel[2]
-    if speed_sq > 340.0*340.0:
-        print(f"[TELEM WARNING] Velocity magnitude > 340 m/s. Supersonic input detected.")
+    speed_sq = vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]
+    if speed_sq > 340.0 * 340.0:
+        print(
+            "[TELEM WARNING] Velocity magnitude > 340 m/s. "
+            "Supersonic input detected."
+        )
 
     return UAVStateSnapshot(t, pos, vel)
 

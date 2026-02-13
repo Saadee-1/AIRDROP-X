@@ -7,11 +7,14 @@ import matplotlib.patches as mpatches
 
 # Import unified military-grade theme
 from product.ui.ui_theme import (
-    BG_MAIN, BG_PANEL,
-    TEXT_PRIMARY, TEXT_LABEL,
-    ACCENT_GO, ACCENT_NO_GO, ACCENT_WARN,
+    BG_MAIN,
+    BG_PANEL,
+    TEXT_PRIMARY,
+    TEXT_LABEL,
+    ACCENT_GO,
+    ACCENT_NO_GO,
+    ACCENT_WARN,
     BORDER_SUBTLE,
-    FONT_FAMILY, FONT_SIZE_BODY, FONT_SIZE_CAPTION
 )
 
 # Legacy aliases for backward compat (mapped to theme)
@@ -89,8 +92,18 @@ def render(ax, **kwargs):
     ax.set_ylim(0, 1)
 
     # Snapshot Mode Badge
-    ax.text(0.98, 0.98, "SNAPSHOT MODE – NOT LIVE FEED", transform=ax.transAxes, 
-            ha="right", va="top", fontsize=8, color=ACCENT_WARN, family="monospace", weight="bold")
+    ax.text(
+        0.98,
+        0.98,
+        "SNAPSHOT MODE – NOT LIVE FEED",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=8,
+        color=ACCENT_WARN,
+        family="monospace",
+        weight="bold",
+    )
 
     # Panel layout: three columns
     # Left: Navigation State (Measured)
@@ -127,11 +140,40 @@ def _draw_navigation_panel(ax, d):
     _draw_panel_frame(ax, "NAVIGATION STATE", "MEASURED")
     y = 0.82
     dy = 0.078
+
     def row(lbl, val, color=None):
-        ax.text(0.06, y, lbl, transform=ax.transAxes, fontsize=8, color=_LABEL, va="center", family="monospace")
-        ax.text(0.94, y, val, transform=ax.transAxes, fontsize=8, color=color or _TEXT, ha="right", va="center", family="monospace")
-    lat = _fmt(d["gnss_lat"], "{:.6f}", "°") if d["gnss_lat"] is not None else "—"
-    lon = _fmt(d["gnss_lon"], "{:.6f}", "°") if d["gnss_lon"] is not None else "—"
+        ax.text(
+            0.06,
+            y,
+            lbl,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=_LABEL,
+            va="center",
+            family="monospace",
+        )
+        ax.text(
+            0.94,
+            y,
+            val,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=color or _TEXT,
+            ha="right",
+            va="center",
+            family="monospace",
+        )
+
+    lat = (
+        _fmt(d["gnss_lat"], "{:.6f}", "°")
+        if d["gnss_lat"] is not None
+        else "—"
+    )
+    lon = (
+        _fmt(d["gnss_lon"], "{:.6f}", "°")
+        if d["gnss_lon"] is not None
+        else "—"
+    )
     row("Latitude", lat)
     y -= dy
     row("Longitude", lon)
@@ -154,9 +196,30 @@ def _draw_attitude_panel(ax, d):
     _draw_panel_frame(ax, "ATTITUDE & MOTION", "MEASURED")
     y = 0.82
     dy = 0.078
+
     def row(lbl, val, color=None):
-        ax.text(0.06, y, lbl, transform=ax.transAxes, fontsize=8, color=_LABEL, va="center", family="monospace")
-        ax.text(0.94, y, val, transform=ax.transAxes, fontsize=8, color=color or _TEXT, ha="right", va="center", family="monospace")
+        ax.text(
+            0.06,
+            y,
+            lbl,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=_LABEL,
+            va="center",
+            family="monospace",
+        )
+        ax.text(
+            0.94,
+            y,
+            val,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=color or _TEXT,
+            ha="right",
+            va="center",
+            family="monospace",
+        )
+
     row("Roll", _fmt(d["roll_deg"], "{:.1f}", "°"))
     y -= dy
     row("Pitch", _fmt(d["pitch_deg"], "{:.1f}", "°"))
@@ -173,9 +236,30 @@ def _draw_environment_panel(ax, d):
     _draw_panel_frame(ax, "ENVIRONMENT", "DERIVED · ESTIMATED")
     y = 0.82
     dy = 0.078
+
     def row(lbl, val, color=None):
-        ax.text(0.06, y, lbl, transform=ax.transAxes, fontsize=8, color=_LABEL, va="center", family="monospace")
-        ax.text(0.94, y, val, transform=ax.transAxes, fontsize=8, color=color or _ESTIMATED, ha="right", va="center", family="monospace")
+        ax.text(
+            0.06,
+            y,
+            lbl,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=_LABEL,
+            va="center",
+            family="monospace",
+        )
+        ax.text(
+            0.94,
+            y,
+            val,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=color or _ESTIMATED,
+            ha="right",
+            va="center",
+            family="monospace",
+        )
+
     row("Wind direction", _fmt(d["wind_dir_deg"], "{:.0f}", "°"))
     y -= dy
     row("Wind speed", _fmt(d["wind_speed_ms"], "{:.1f}", " m/s"))

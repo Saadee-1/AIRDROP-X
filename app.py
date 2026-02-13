@@ -23,7 +23,19 @@ from product.guidance.advisory_layer import (
 )
 from product.guidance.numerical_diagnostics import quick_stability_check
 from product.ui import plots
-from product.ui.ui_theme import *
+from product.ui.ui_theme import (
+    BG_MAIN,
+    BG_PANEL,
+    BG_INPUT,
+    TEXT_PRIMARY,
+    TEXT_LABEL,
+    ACCENT_GO,
+    ACCENT_WARN,
+    ACCENT_NO_GO,
+    BORDER_SUBTLE,
+    FONT_FAMILY,
+    BUTTON_HOVER,
+)
 from product.ui.tabs.payload_library import PAYLOAD_LIBRARY, CATEGORIES
 
 # ─── Snapshot ID ──────────────────────────────────────────────────────────────

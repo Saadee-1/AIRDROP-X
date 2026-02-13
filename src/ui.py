@@ -52,7 +52,8 @@ def launch_ui(impact_points, P_hit, cep50):
         mode_label = mode_radio.value_selected
         title.set_text(
             f"Mode: {mode_label} | Decision: {decision} | "
-            f"Target Hit % = {hit_pct:.1f} | Threshold = {threshold_pct:.1f}% | CEP50 = {cep50:.2f} m"
+            f"Target Hit % = {hit_pct:.1f} | "
+            f"Threshold = {threshold_pct:.1f}% | CEP50 = {cep50:.2f} m"
         )
         fig.canvas.draw_idle()
 
