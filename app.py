@@ -5,6 +5,7 @@ Streamlit-based web interface — full parity with desktop matplotlib UI.
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import numpy as np
 import matplotlib.pyplot as plt
 import math
@@ -311,42 +312,62 @@ st.markdown(f"""
         border-radius: 4px;
         transition: border 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
     }}
-    /* Operator/Engineering Toggle Buttons */
-    .stMarkdown:has(.dispersion-toggle-row) ~ div[data-testid="stHorizontalBlock"] .stButton > button {
+    /* Operator/Engineering Toggle Buttons - Strict State Control v3 */
+    
+    /* Base Style for Toggle Buttons (Inactive Look) */
+    /* Less aggressive resets so active states can win */
+    div:has(.dispersion-toggle-row) [data-testid="stHorizontalBlock"] .stButton > button:has(p) {{
         background-color: #0a0a0a !important;
         color: #4a6a4a !important;
         border: 1px solid #2a3a2a !important;
+        box-shadow: none;
         opacity: 0.6;
-        font-weight: 400;
-        box-shadow: none !important;
+        font-weight: 400 !important;
         transition: all 0.3s ease !important;
-    }
-    /* OPERATOR selected: first button = active (filled glow + border + text) */
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="operator"]) ~ div[data-testid="stHorizontalBlock"] > div:first-child .stButton > button {
-        background-color: rgba(0, 255, 102, 0.2) !important;
+    }}
+    div:has(.dispersion-toggle-row) [data-testid="stHorizontalBlock"] .stButton > button p {{
+        color: inherit !important;
+    }}
+
+    /* ACTIVE STATE: OPERATOR (Column 1 Glows) */
+    /* Using first-child as it worked before */
+    div:has(.dispersion-toggle-row[data-mode="operator"]) [data-testid="stHorizontalBlock"] > div:first-child .stButton > button:has(p) {{
+        background-color: rgba(0, 255, 102, 0.25) !important;
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
         border-left: 4px solid #00FF66 !important;
-        box-shadow: 0 0 15px rgba(0, 255, 102, 0.4), inset 0 0 10px rgba(0, 255, 102, 0.1) !important;
+        box-shadow: 0 0 25px rgba(0, 255, 102, 0.5), inset 0 0 15px rgba(0, 255, 102, 0.15) !important;
         font-weight: 600 !important;
-        opacity: 1;
-    }
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="operator"]) ~ div[data-testid="stHorizontalBlock"] > div:first-child .stButton > button:hover {
-        box-shadow: 0 0 20px rgba(0, 255, 102, 0.6), inset 0 0 15px rgba(0, 255, 102, 0.2) !important;
-    }
-    /* ENGINEERING selected: second button = active (filled glow + border + text) */
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="engineering"]) ~ div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button {
-        background-color: rgba(0, 255, 102, 0.2) !important;
+        opacity: 1 !important;
+    }}
+
+    /* ACTIVE STATE: ENGINEERING (Column 2 Glows) */
+    /* Using last-child as it worked before */
+    div:has(.dispersion-toggle-row[data-mode="engineering"]) [data-testid="stHorizontalBlock"] > div:last-child .stButton > button:has(p) {{
+        background-color: rgba(0, 255, 102, 0.25) !important;
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
         border-left: 4px solid #00FF66 !important;
-        box-shadow: 0 0 15px rgba(0, 255, 102, 0.4), inset 0 0 10px rgba(0, 255, 102, 0.1) !important;
+        box-shadow: 0 0 25px rgba(0, 255, 102, 0.5), inset 0 0 15px rgba(0, 255, 102, 0.15) !important;
         font-weight: 600 !important;
-        opacity: 1;
-    }
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="engineering"]) ~ div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button:hover {
-        box-shadow: 0 0 20px rgba(0, 255, 102, 0.6), inset 0 0 15px rgba(0, 255, 102, 0.2) !important;
-    }
+        opacity: 1 !important;
+    }}
+    
+    /* Strict Inactive Overrides (ensure the OTHER button stays dark) */
+    /* When Operator Active: Column 2 (last-child) Inactive */
+    div:has(.dispersion-toggle-row[data-mode="operator"]) [data-testid="stHorizontalBlock"] > div:last-child .stButton > button:has(p) {{
+        background-color: #0a0a0a !important;
+        border: 1px solid #2a3a2a !important;
+        box-shadow: none !important;
+        opacity: 0.6 !important;
+    }}
+    /* When Engineering Active: Column 1 (first-child) Inactive */
+    div:has(.dispersion-toggle-row[data-mode="engineering"]) [data-testid="stHorizontalBlock"] > div:first-child .stButton > button:has(p) {{
+        background-color: #0a0a0a !important;
+        border: 1px solid #2a3a2a !important;
+        box-shadow: none !important;
+        opacity: 0.6 !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1199,6 +1220,55 @@ def main():
         time.sleep(auto_interval_sec)
         st.rerun()
 
+
+
+# --- INJECTED JS FOR BUTTON STYLES ---
+# Force "OPERATOR" and "ENGINEERING" styling based on mode
+current_disp_mode = st.session_state.get("impact_dispersion_mode", "balanced")
+
+# Only apply if we are in a targeted mode
+if current_disp_mode in ["operator", "engineering"]:
+    js_script = f"""
+    <script>
+        // Wait for elements to be rendered
+        setTimeout(function() {{
+            const buttons = Array.from(window.parent.document.querySelectorAll('button'));
+            const operatorBtn = buttons.find(b => b.innerText === "OPERATOR");
+            const engineeringBtn = buttons.find(b => b.innerText === "ENGINEERING");
+
+            if (operatorBtn && engineeringBtn) {{
+                // Reset styling first
+                [operatorBtn, engineeringBtn].forEach(btn => {{
+                    btn.style.boxShadow = "none";
+                    btn.style.opacity = "0.6";
+                    btn.style.backgroundColor = "#0a0a0a";
+                    btn.style.color = "#4a6a4a";
+                    btn.style.border = "1px solid #2a3a2a";
+                    btn.style.transition = "all 0.3s ease";
+                }});
+
+                // Apply Active Style
+                const activeMode = "{current_disp_mode}";
+                const activeBtn = activeMode === "operator" ? operatorBtn : engineeringBtn;
+                
+                if (activeBtn) {{
+                    activeBtn.style.backgroundColor = "rgba(0, 255, 102, 0.25)";
+                    activeBtn.style.color = "#00FF66";
+                    activeBtn.style.border = "1px solid #00FF66";
+                    activeBtn.style.borderLeft = "4px solid #00FF66";
+                    activeBtn.style.boxShadow = "0 0 25px rgba(0, 255, 102, 0.5), inset 0 0 15px rgba(0, 255, 102, 0.15)";
+                    activeBtn.style.opacity = "1";
+                    activeBtn.style.fontWeight = "600";
+                    
+                    // Force text color
+                    const p = activeBtn.querySelector('p');
+                    if (p) p.style.color = "#00FF66";
+                }}
+            }}
+        }}, 300); // Small delay on rerun
+    </script>
+    """
+    components.html(js_script, height=0, width=0)
 
 if __name__ == "__main__":
     main()
