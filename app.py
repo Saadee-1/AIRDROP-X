@@ -311,41 +311,42 @@ st.markdown(f"""
         border-radius: 4px;
         transition: border 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
     }}
-    /* Default: both buttons dimmed; overridden below by data-mode for the selected one */
-    .stMarkdown:has(.dispersion-toggle-row) ~ div[data-testid="stHorizontalBlock"] .stButton > button {{
+    /* Operator/Engineering Toggle Buttons */
+    .stMarkdown:has(.dispersion-toggle-row) ~ div[data-testid="stHorizontalBlock"] .stButton > button {
         background-color: #0a0a0a !important;
         color: #4a6a4a !important;
         border: 1px solid #2a3a2a !important;
         opacity: 0.6;
         font-weight: 400;
         box-shadow: none !important;
-    }}
-    /* OPERATOR selected: first button = active (left bar + border + glow) */
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="operator"]) ~ div[data-testid="stHorizontalBlock"] > div:first-child .stButton > button {{
-        background-color: rgba(0, 50, 25, 0.9) !important;
+        transition: all 0.3s ease !important;
+    }
+    /* OPERATOR selected: first button = active (filled glow + border + text) */
+    .stMarkdown:has(.dispersion-toggle-row[data-mode="operator"]) ~ div[data-testid="stHorizontalBlock"] > div:first-child .stButton > button {
+        background-color: rgba(0, 255, 102, 0.2) !important;
         color: #00FF66 !important;
-        border: 2px solid #00FF66 !important;
+        border: 1px solid #00FF66 !important;
         border-left: 4px solid #00FF66 !important;
-        box-shadow: 0 0 8px rgba(0, 255, 102, 0.35) !important;
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.4), inset 0 0 10px rgba(0, 255, 102, 0.1) !important;
         font-weight: 600 !important;
         opacity: 1;
-    }}
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="operator"]) ~ div[data-testid="stHorizontalBlock"] > div:first-child .stButton > button:hover {{
-        box-shadow: 0 0 10px rgba(0, 255, 102, 0.4) !important;
-    }}
-    /* ENGINEERING selected: second button = active (left bar + border + glow) */
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="engineering"]) ~ div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button {{
-        background-color: rgba(0, 50, 25, 0.9) !important;
+    }
+    .stMarkdown:has(.dispersion-toggle-row[data-mode="operator"]) ~ div[data-testid="stHorizontalBlock"] > div:first-child .stButton > button:hover {
+        box-shadow: 0 0 20px rgba(0, 255, 102, 0.6), inset 0 0 15px rgba(0, 255, 102, 0.2) !important;
+    }
+    /* ENGINEERING selected: second button = active (filled glow + border + text) */
+    .stMarkdown:has(.dispersion-toggle-row[data-mode="engineering"]) ~ div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button {
+        background-color: rgba(0, 255, 102, 0.2) !important;
         color: #00FF66 !important;
-        border: 2px solid #00FF66 !important;
+        border: 1px solid #00FF66 !important;
         border-left: 4px solid #00FF66 !important;
-        box-shadow: 0 0 8px rgba(0, 255, 102, 0.35) !important;
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.4), inset 0 0 10px rgba(0, 255, 102, 0.1) !important;
         font-weight: 600 !important;
         opacity: 1;
-    }}
-    .stMarkdown:has(.dispersion-toggle-row[data-mode="engineering"]) ~ div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button:hover {{
-        box-shadow: 0 0 10px rgba(0, 255, 102, 0.4) !important;
-    }}
+    }
+    .stMarkdown:has(.dispersion-toggle-row[data-mode="engineering"]) ~ div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button:hover {
+        box-shadow: 0 0 20px rgba(0, 255, 102, 0.6), inset 0 0 15px rgba(0, 255, 102, 0.2) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
