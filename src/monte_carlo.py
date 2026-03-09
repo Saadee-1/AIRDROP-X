@@ -65,7 +65,11 @@ def _compute_acceleration(pos, vel, context, wind_a=None, cd_override=None):
         acc: (M, 3) acceleration vectors
     """
     z = pos[:, 2]
-    rho = context.density(z)
+    # Simple exponential atmosphere model (density vs altitude above ground).
+    rho0 = 1.225
+    H = 8500.0
+    z_agl = np.maximum(0.0, z - float(context.target_z))
+    rho = rho0 * np.exp(-z_agl / H)
     # If wind_a is provided, do NOT call context.wind(z).
     # This prevents double wind computation inside masked RK2 path.
     if wind_a is None:
@@ -79,13 +83,9 @@ def _compute_acceleration(pos, vel, context, wind_a=None, cd_override=None):
         assert rho.ndim == 1
         assert rho.shape[0] == len(z)
     v_rel = vel - wind
-    v_rel_mag = np.linalg.norm(v_rel, axis=1)
+    speed = np.linalg.norm(v_rel, axis=1)
     Cd = cd_override[:, None] if cd_override is not None else context.Cd
-    drag_force = np.where(
-        v_rel_mag[:, None] > 0,
-        -0.5 * rho[:, None] * Cd * context.area * v_rel_mag[:, None] * v_rel,
-        0.0,
-    )
+    drag_force = -0.5 * rho[:, None] * Cd * context.area * speed[:, None] * v_rel
     return _GRAVITY + drag_force / context.mass
 
 
@@ -263,10 +263,15 @@ def _propagate_payload_batch(
             step_count[active] = step + 1
 
         # --- Detect ground impact ---
-        active_new = pos[:, 2] > ground_z
+        # Numerical safety: drop any divergent / invalid trajectories.
+        finite_mask = np.isfinite(pos).all(axis=1) & np.isfinite(vel).all(axis=1)
+        speed_all = np.linalg.norm(vel, axis=1)
+        sane_speed = speed_all <= 300.0
+
+        active_new = (pos[:, 2] > ground_z) & finite_mask & sane_speed
         just_hit = active & ~active_new
 
-        if use_precise_impact and np.any(just_hit):
+        if np.any(just_hit):
             # Linear interpolation: alpha = (p_prev_z - ground_z) / (p_prev_z - p_curr_z)
             p_prev = p_a[just_hit[active]]
             p_curr = pos[just_hit]
@@ -280,9 +285,6 @@ def _propagate_payload_batch(
             p_impact = p_prev + alpha[:, None] * (p_curr - p_prev)
             impact_xy[just_hit, 0] = p_impact[:, 0]
             impact_xy[just_hit, 1] = p_impact[:, 1]
-        else:
-            impact_xy[just_hit, 0] = pos[just_hit, 0]
-            impact_xy[just_hit, 1] = pos[just_hit, 1]
         impact_stored[just_hit] = True
 
         if return_impact_speeds:

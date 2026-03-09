@@ -125,5 +125,12 @@ def propagate_unscented(
     # downstream eigen/square-root computations.
     impact_cov += 1e-12 * np.eye(2, dtype=float)
 
+    # Guarantee positive definiteness (defensive): if numerical issues
+    # produce a slightly negative eigenvalue, shift the diagonal.
+    eigvals = np.linalg.eigvalsh(impact_cov)
+    min_eig = float(np.min(eigvals))
+    if min_eig < 0.0:
+        impact_cov += (abs(min_eig) + 1e-9) * np.eye(2, dtype=float)
+
     return impact_mean, impact_cov
 

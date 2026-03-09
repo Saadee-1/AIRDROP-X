@@ -9,6 +9,7 @@ results table.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -81,6 +82,7 @@ def find_release_window(
     vel0,
     target_pos,
     motion_predictor=None,
+    offset: float = 0.0,
 ) -> ReleaseWindowResult:
     """
     Scan a time grid for feasible release moments and identify the optimal one.
@@ -122,6 +124,7 @@ def find_release_window(
     pos0 = np.asarray(pos0, dtype=float).reshape(3)
     vel0 = np.asarray(vel0, dtype=float).reshape(3)
     target_2d = np.asarray(target_pos, dtype=float).flatten()[:2]
+    start_time = time.perf_counter()
 
     t_min = 0.0
     t_max = float(getattr(config, "max_release_time", 5.0))
@@ -252,6 +255,11 @@ def find_release_window(
             if i not in mc_indices:
                 continue
 
+            elapsed = time.perf_counter() - start_time
+            if elapsed > 0.1:
+                print("[HYBRID] MC verification skipped due to runtime limit")
+                break
+
             pos_future = pos0 + vel0 * float(entry.time)
             pos_release = pos_future + vel0 * release_delay
 
@@ -272,6 +280,10 @@ def find_release_window(
             )
             entry.p_hit_mc = float(p_hit_mc)
             entry.p_hit = float(p_hit_mc)
+            print(
+                f"[HYBRID] MC verification used at t={entry.time:.2f}s offset={float(offset):.1f}m"
+            )
+            print(f"[HYBRID] UT={entry.p_hit_ut:.3f} → MC={entry.p_hit_mc:.3f}")
 
         # Recompute best and feasible using effective p_hit (MC when available).
         best_p = -1.0

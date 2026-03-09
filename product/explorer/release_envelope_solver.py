@@ -131,6 +131,7 @@ def compute_release_envelope(
             vel0,
             target_pos,
             motion_predictor=motion_predictor,
+            offset=float(offset),
         )
 
         raw_results.append((

@@ -45,6 +45,9 @@ class MotionPredictor:
         pos = self._state.position
         vel = self._state.velocity
         acc = self._state.acceleration
+        a_mag = float(np.linalg.norm(acc))
+        if a_mag > 15.0:
+            acc = acc * (15.0 / a_mag)
 
         position = pos + vel * dt + 0.5 * acc * (dt ** 2)
         velocity = vel + acc * dt
