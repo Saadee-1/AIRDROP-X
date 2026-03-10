@@ -124,7 +124,7 @@ class EvaluationWorker(QThread):
             decision_reason = doctrine_result["reason"]
             doctrine_description = doctrine_result.get("doctrine_description") or DOCTRINE_DESCRIPTIONS.get(doctrine, doctrine)
 
-            # 6) Emit single atomic result packet (includes full telemetry snapshot for unified Control Center rendering)
+            # 6) Emit single atomic result packet (includes full telemetry snapshot for unified Tactical Map rendering)
             mission_mode = str(local_config.get("mission_mode", "TACTICAL")).strip().upper()
             if mission_mode not in ("TACTICAL", "HUMANITARIAN"):
                 mission_mode = "TACTICAL"

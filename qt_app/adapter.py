@@ -188,7 +188,7 @@ def run_simulation_snapshot(
         n_actual = n_samples
         P_hit = 0.0
 
-    # Telemetry-like dict for unified Control Center rendering (SNAPSHOT path)
+    # Telemetry-like dict for unified Tactical Map rendering (SNAPSHOT path)
     telemetry = {
         "x": uav_pos[0],
         "y": uav_pos[1],

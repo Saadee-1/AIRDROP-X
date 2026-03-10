@@ -50,6 +50,37 @@ def render(
     )
 
 
+def render_control(
+    ax,
+    decision,
+    target_hit_percentage,
+    cep50,
+    threshold,
+    mode,
+    advisory_result=None,
+    n_samples=None,
+    confidence_index=None,
+    random_seed=None,
+    target_radius=None,
+    **_,
+):
+    ax.set_axis_off()
+    ax.set_facecolor(BG_PANEL)
+    _draw_banner_metrics_advisory(
+        ax,
+        decision,
+        target_hit_percentage,
+        cep50,
+        threshold,
+        mode,
+        advisory_result,
+        n_samples,
+        confidence_index=confidence_index,
+        random_seed=random_seed,
+        target_radius=target_radius,
+    )
+
+
 
 def _draw_banner_metrics_advisory(
     ax,

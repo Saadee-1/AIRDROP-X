@@ -37,7 +37,7 @@ from product.guidance.advisory_layer import (
     evaluate_advisory,
 )
 from product.ui import qt_bridge
-from product.ui.tabs import mission_overview, payload_library, sensor_telemetry, analysis, system_status
+from product.ui.tabs import mission_overview, payload_library, sensor_telemetry, system_status
 from product.integrations.state_buffer import StateBuffer
 from product.integrations.telemetry_contract import TelemetryFrame
 from product.integrations.telemetry_health import check_telemetry_health
@@ -256,12 +256,10 @@ class AirdropMainWindow(QMainWindow):
         """(Re)build all tabs from the current snapshot."""
         assert self._tabs is not None
         self._tabs.clear()
-        self._tabs.addTab(
-            self._make_mission_overview_tab(), "Mission Overview"
-        )
-        self._tabs.addTab(self._make_payload_tab(), "Payload Library")
-        self._tabs.addTab(self._make_sensor_tab(), "Sensor & Telemetry")
-        self._tabs.addTab(self._make_analysis_tab(), "Analysis")
+        self._tabs.addTab(self._make_tactical_map_tab(), "Tactical Map")
+        self._tabs.addTab(self._make_mission_control_tab(), "Mission Control")
+        self._tabs.addTab(self._make_sensor_tab(), "Telemetry")
+        self._tabs.addTab(self._make_payload_tab(), "Mission Setup")
         self._tabs.addTab(self._make_system_status_tab(), "System Status")
 
     def _update_snapshot_banner(self) -> None:
@@ -406,7 +404,7 @@ class AirdropMainWindow(QMainWindow):
         layout.addWidget(canvas)
         return widget
 
-    def _make_mission_overview_tab(self) -> QWidget:
+    def _make_tactical_map_tab(self) -> QWidget:
         fig = qt_bridge.create_figure()
         rp = (
             self._results["mission_state"].uav_position[:2]
@@ -428,6 +426,25 @@ class AirdropMainWindow(QMainWindow):
         }
         qt_bridge.render_into_single_axes(
             fig, mission_overview.render, **mission_data
+        )
+        return self._wrap_canvas(fig)
+
+    def _make_mission_control_tab(self) -> QWidget:
+        fig = qt_bridge.create_figure()
+        control_data = {
+            "decision": self._results["advisory_result"].current_feasibility,
+            "target_hit_percentage": self._results["P_hit"] * 100.0,
+            "cep50": self._results["cep50"],
+            "threshold": self._results["initial_threshold_percent"],
+            "mode": self._results["initial_mode"],
+            "advisory_result": self._results.get("advisory_result"),
+            "n_samples": self._cfg.get("n_samples"),
+            "confidence_index": self._results.get("confidence_index"),
+            "random_seed": self._cfg.get("random_seed"),
+            "target_radius": self._results.get("target_radius"),
+        }
+        qt_bridge.render_into_single_axes(
+            fig, mission_overview.render_control, **control_data
         )
         return self._wrap_canvas(fig)
 
@@ -453,34 +470,6 @@ class AirdropMainWindow(QMainWindow):
             wind_mean_ms=float(self._cfg.get("wind_mean", (0.0, 0.0, 0.0))[0]),
             wind_std_dev_ms=self._cfg.get("wind_std"),
             telemetry_live=False,
-        )
-        return self._wrap_canvas(fig)
-
-    def _make_analysis_tab(self) -> QWidget:
-        fig = qt_bridge.create_figure()
-        uav_pos = (
-            self._results["mission_state"].uav_position
-            if self._results.get("mission_state")
-            else None
-        )
-        analysis_kwargs = {
-            "impact_points": self._results["impact_points"],
-            "target_position": self._results["target_position"],
-            "target_radius": self._results["target_radius"],
-            "uav_position": uav_pos,
-            "wind_mean": self._cfg.get("wind_mean"),
-            "cep50": self._results["cep50"],
-            "target_hit_percentage": self._results["P_hit"] * 100.0,
-            "impact_velocity_stats": self._results.get(
-                "impact_velocity_stats"
-            ),
-            "max_safe_impact_speed": self._results.get(
-                "max_safe_impact_speed"
-            ),
-            "dispersion_mode": self.current_mode,
-        }
-        qt_bridge.render_into_single_axes(
-            fig, analysis.render, **analysis_kwargs
         )
         return self._wrap_canvas(fig)
 

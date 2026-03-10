@@ -37,6 +37,9 @@ from telemetry import TelemetryWorker
 from widgets import NoWheelDoubleSpinBox, NoWheelSlider, StatusStrip
 from product.ui import qt_bridge
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+from product.runtime.system_state import SystemState
+from product.ui.tactical_map_controller import TacticalMapController
+from product.ui.tabs.tactical_map_tab import TacticalMapTab
 from product.ui.tabs import (
     analysis as analysis_tab_renderer,
     mission_overview as mission_overview_tab_renderer,
@@ -130,6 +133,7 @@ class MainWindow(QMainWindow):
         self.auto_evaluate_paused = False
         self.mission_fig_op = None
         self.mission_canvas_op = None
+        self.system_state = SystemState()
         # Application state control (Operator Mode only)
         self.app_state = AppState.NO_PAYLOAD
         self._last_applied_payload_key = None  # Track payload to detect changes
@@ -158,6 +162,10 @@ class MainWindow(QMainWindow):
         self._apply_theme()
         self._refresh_mode_buttons()
         self._start_telemetry()
+        self.tactical_map_controller = TacticalMapController(
+            self.system_state, self.tactical_map.map_widget, parent=self
+        )
+        self.tactical_map_controller.start()
 
         # Evaluation worker for continuous live mode
         self.evaluation_worker = EvaluationWorker(
@@ -193,6 +201,9 @@ class MainWindow(QMainWindow):
         # Start with standard layout (default mode is standard)
         self.mission_tab = self.mission_tab_operator
 
+        self.tactical_map = TacticalMapTab()
+        self.tactical_map_widget = self.tactical_map.map_widget
+
         self.payload_tab = self._build_payload_tab(None)
         self.telemetry_tab, self.telemetry_fig, self.telemetry_canvas = self._build_canvas_tab(None)
 
@@ -200,14 +211,14 @@ class MainWindow(QMainWindow):
 
         self.system_tab, self.system_fig, self.system_canvas = self._build_canvas_tab(None)
 
-        # Add tabs in schematic order: Control Center, Telemetry, Mission Config, Analysis, System Status
-        self.main_tabs.addTab(self.mission_tab, "Control Center")
+        # Add tabs in schematic order: Tactical Map, Telemetry, Mission Config, Analysis, System Status
+        self.main_tabs.addTab(self.tactical_map, "Tactical Map")
         self.main_tabs.addTab(self.telemetry_tab, "Telemetry")
         self.main_tabs.addTab(self.payload_tab, "Mission Configuration")
         self.main_tabs.setTabToolTip(self.main_tabs.indexOf(self.payload_tab), "Mission Configuration")
         self.main_tabs.addTab(self.analysis_tab, "Analysis")
         self.main_tabs.addTab(self.system_tab, "System Status")
-        # Default tab: Control Center (index 0)
+        # Default tab: Tactical Map (index 0)
         self.main_tabs.setCurrentIndex(0)
         right_layout.addWidget(self.main_tabs, 1)
 
@@ -225,7 +236,7 @@ class MainWindow(QMainWindow):
         # Initialize application state (Operator Mode only) - but don't restrict tabs
         if self.current_mode == "operator":
             self.app_state = AppState.NO_PAYLOAD
-        # Seed config_state from defaults; init Control Center spinboxes and MissionConfigTab
+        # Seed config_state from defaults; init Tactical Map spinboxes and MissionConfigTab
         self._seed_config_state()
         with self.config_state.lock:
             cfg = dict(self.config_state.data)
@@ -253,7 +264,7 @@ class MainWindow(QMainWindow):
         self._render_system_tab()
 
     def _build_mission_tab_operator(self, parent: QWidget | None) -> QWidget:
-        """Build Control Center tab: scrollable content, 3-card decision band, plot + advisory column."""
+        """Build Tactical Map tab: scrollable content, 3-card decision band, plot + advisory column."""
         tab = QWidget(parent)
         tab.setStyleSheet("background-color: #0d140d;")
         tab.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -846,7 +857,7 @@ class MainWindow(QMainWindow):
         self, snapshot, decision, p_hit, cep50, threshold, advisory, impact_points,
         paused_info=None, config_only: bool = False, robustness_status: str = "",
     ) -> None:
-        """Render Control Center tab. All data from snapshot only."""
+        """Render Tactical Map tab. All data from snapshot only."""
         snapshot_type = snapshot.get("snapshot_type")
         if snapshot_type not in ("CONFIG", "EVALUATION"):
             snapshot_type = "CONFIG"
@@ -1332,6 +1343,45 @@ class MainWindow(QMainWindow):
             pass
         self.system_canvas.draw_idle()
 
+    def _update_system_state_from_snapshot(self, snapshot: dict) -> None:
+        if not snapshot:
+            return
+        with self.system_state.lock:
+            target_pos = snapshot.get("target_position")
+            if target_pos is not None:
+                self.system_state.target_position = target_pos
+            if "target_radius" in snapshot:
+                tr = snapshot.get("target_radius")
+                self.system_state.settings["target_radius"] = tr
+                self.system_state.target_radius = tr
+
+            decision = snapshot.get("decision")
+            status = None
+            if isinstance(decision, str):
+                status = "DROP NOW" if decision.strip().upper() == "DROP" else "NO DROP"
+            guidance = {
+                "status": status,
+                "P_hit": snapshot.get("P_hit"),
+                "threshold": snapshot.get("threshold_pct"),
+                "target_release_point": snapshot.get("target_release_point"),
+                "uncertainty_contribution": snapshot.get("uncertainty_contribution"),
+            }
+            self.system_state.guidance_result = guidance
+            if "threshold_pct" in snapshot:
+                self.system_state.threshold = snapshot.get("threshold_pct")
+
+            envelope = {}
+            if "feasible_offsets" in snapshot:
+                envelope["feasible_offsets"] = snapshot.get("feasible_offsets")
+            if "impact_mean" in snapshot:
+                envelope["impact_mean"] = snapshot.get("impact_mean")
+            if "impact_cov" in snapshot:
+                envelope["impact_cov"] = snapshot.get("impact_cov")
+            if "target_radius" in snapshot:
+                envelope["target_radius"] = snapshot.get("target_radius")
+            if envelope:
+                self.system_state.envelope_result = envelope
+
     def _apply_theme(self) -> None:
         self.setStyleSheet(
             """
@@ -1500,7 +1550,7 @@ class MainWindow(QMainWindow):
             )
 
     def _switch_mission_tab_layout(self) -> None:
-        """No tab swap — Control Center always uses operator layout. Mode only changes plot rendering."""
+        """No tab swap — Tactical Map always uses operator layout. Mode only changes plot rendering."""
         pass
 
     def _on_tab_changed(self, index: int) -> None:
@@ -1519,8 +1569,8 @@ class MainWindow(QMainWindow):
         if self.current_mode == "standard":
             self.app_state = AppState.NO_PAYLOAD
             self._update_app_state_ui()
-            # Default tab index 0 is Control Center
-            self.main_tabs.setCurrentIndex(0)  # Control Center is first tab
+            # Default tab index 0 is Tactical Map
+            self.main_tabs.setCurrentIndex(0)  # Tactical Map is first tab
 
     def _update_app_state_ui(self) -> None:
         """Update UI based on current application state (Standard Mode only)."""
@@ -1661,6 +1711,7 @@ class MainWindow(QMainWindow):
         with self.config_state.lock:
             snap["mission_mode"] = self.config_state.data.get("mission_mode", "TACTICAL")
         self._latest_snapshot = snap
+        self._update_system_state_from_snapshot(snap)
         self._snapshot_created_at = datetime.now()
         self.current_snapshot_id = self._snapshot_created_at.strftime("AX-%Y%m%d-%H%M%S")
         self._last_eval_time = time.time()
@@ -1880,6 +1931,7 @@ class MainWindow(QMainWindow):
         self._prev_wind_gradient = data.get("updated_wind_gradient")
         self._push_config_to_worker()
         self._latest_snapshot = snapshot
+        self._update_system_state_from_snapshot(snapshot)
         self._log_state_transition("EVALUATION")
         self.app_state = AppState.EVALUATED
         self.snapshot_active = True
@@ -1905,6 +1957,15 @@ class MainWindow(QMainWindow):
         self._last_telemetry = dict(data or {})
         with self.telemetry_state.lock:
             self.telemetry_state.data = dict(self._last_telemetry)
+        with self.system_state.lock:
+            x = float(self._last_telemetry.get("x", 0.0) or 0.0)
+            y = float(self._last_telemetry.get("y", 0.0) or 0.0)
+            vx = float(self._last_telemetry.get("vx", 0.0) or 0.0)
+            vy = float(self._last_telemetry.get("vy", 0.0) or 0.0)
+            self.system_state.vehicle_state = {
+                "position": (x, y),
+                "velocity": (vx, vy),
+            }
         if self.system_mode == "LIVE":
             self._apply_live_telemetry_to_config()
             self._push_config_to_worker()

@@ -9,7 +9,6 @@ from matplotlib.widgets import Button
 from . import tabs
 from .tabs import mission_overview
 from .tabs import payload_library
-from .tabs import analysis
 from .tabs import system_status
 
 # Import unified military-grade theme
@@ -104,11 +103,18 @@ def launch_unified_ui(
         if index == 0:
             mission_overview.render(content_ax, **mission_data)
         elif index == 1:
-            # Pass callback if provided
-            payload_library.render(
+            mission_overview.render_control(
                 content_ax,
-                fig,
-                run_simulation_callback=run_simulation_callback,
+                decision=mission_data["decision"],
+                target_hit_percentage=mission_data["target_hit_percentage"],
+                cep50=mission_data["cep50"],
+                threshold=mission_data["threshold"],
+                mode=mission_data["mode"],
+                advisory_result=mission_data.get("advisory_result"),
+                n_samples=n_samples,
+                confidence_index=mission_data.get("confidence_index"),
+                random_seed=random_seed,
+                target_radius=mission_data.get("target_radius"),
             )
         elif index == 2:
             tabs.TABS[2][1](
@@ -122,15 +128,11 @@ def launch_unified_ui(
                 telemetry_live=False,
             )
         elif index == 3:
-            analysis.render(
+            # Pass callback if provided
+            payload_library.render(
                 content_ax,
-                impact_points=mission_data["impact_points"],
-                target_position=mission_data["target_position"],
-                target_radius=mission_data["target_radius"],
-                cep50=mission_data["cep50"],
-                target_hit_percentage=mission_data["target_hit_percentage"],
-                impact_velocity_stats=mission_data.get("impact_velocity_stats"),
-                max_safe_impact_speed=mission_data.get("max_safe_impact_speed"),
+                fig,
+                run_simulation_callback=run_simulation_callback,
             )
         elif index == 4:
             system_status.render(

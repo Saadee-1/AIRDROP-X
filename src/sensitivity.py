@@ -95,7 +95,7 @@ def compute_sensitivity(
         )
         snapshot["sensitivity_matrix"] = matrix
         snapshot["dominant_risk_factor"] = ranked[0][0] if ranked else "wind"
-        # Also set sensitivity_live for Control Center Current Factors display
+        # Also set sensitivity_live for Tactical Map Current Factors display
         snapshot["sensitivity_live"] = {
             "wind_gradient_raw": dP_dW,
             "wind_gradient_smoothed": dP_dW,

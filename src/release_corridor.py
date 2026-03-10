@@ -91,7 +91,7 @@ def compute_release_corridor(
             "max_offset_m": max_offset_m,
             "corridor_width_m": corridor_width_m,
         }
-        # Also set release_corridor_live for Control Center Current Factors display
+        # Also set release_corridor_live for Tactical Map Current Factors display
         margin_pct = (P_base - threshold) * 100.0
         snapshot["release_corridor_live"] = {
             "corridor_width_m": corridor_width_m,  # may be float or "<1.0"
