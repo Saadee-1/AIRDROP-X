@@ -848,7 +848,7 @@ class TacticalMapWidget(QGraphicsView):
             viewport = self.viewport()
             vw = viewport.width()
             banner_w = 320
-            banner_h = 44
+            banner_h = 64
             x = (vw - banner_w) // 2
             y = 10
             self._status_banner.setGeometry(x, y, banner_w, banner_h)

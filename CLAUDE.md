@@ -24,14 +24,14 @@ Hard Real-Time Target: 50ms end-to-end (target lock to advisory output)
 Qt Binding: PySide6 ONLY. Never PyQt5. Never PyQt6.
 Language: Python 3.x
 UI Framework: PySide6 — QGraphicsView-based tactical map
-Window Title: Must read "SCYTHE" not "AIRDROP-X"
+Window Title: Must read "SCYTHE" not "SCYTHE"
 
 ---
 
 ## 2. Repository Structure
 
 ```
-E:/AIRDROP-X/
+E:/SCYTHE/
 |-- CLAUDE.md                          <- this file
 |-- product/
 |   |-- aircraft/
@@ -329,8 +329,8 @@ Opportunity corridor visualization on map.
 
 ## 11. Known Issues and Pending Fixes
 
-- Window title reads "AIRDROP-X" — change to "SCYTHE" in main_window.py
-- System Status ENGINE IDENTITY block says "AIRDROP-X v1.1" — update to "SCYTHE v1.1"
+- Window title reads "SCYTHE" — change to "SCYTHE" in main_window.py
+- System Status ENGINE IDENTITY block says "SCYTHE v1.1" — update to "SCYTHE v1.1"
 - get_drop_status() in motion_predictor.py returns DropStatus.NO_DROP placeholder.
   TODO comment marks the real logic insertion point.
 - Sigma point propagations sequential — batch optimization pending profiling

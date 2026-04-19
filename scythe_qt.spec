@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for AIRDROP-X Qt desktop app.
-# Build: pyinstaller --noconfirm --clean airdrop_x_qt.spec
-# Output: dist/AIRDROP-X/AIRDROP-X.exe (one-folder bundle)
+# PyInstaller spec for SCYTHE Qt desktop app.
+# Build: pyinstaller --noconfirm --clean scythe_qt.spec
+# Output: dist/SCYTHE/SCYTHE.exe (one-folder bundle)
 
 block_cipher = None
 
@@ -39,7 +39,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='AIRDROP-X',
+    name='SCYTHE',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -60,5 +60,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='AIRDROP-X',
+    name='SCYTHE',
 )

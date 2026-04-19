@@ -1,5 +1,5 @@
 """
-Tab modules for AIRDROP-X UI. Each tab exposes render(ax).
+Tab modules for SCYTHE UI. Each tab exposes render(ax).
 """
 
 from .mission_overview import render as render_tactical_map

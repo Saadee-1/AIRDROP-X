@@ -1,4 +1,4 @@
-# AIRDROP-X Offline Implementation Summary
+# SCYTHE Offline Implementation Summary
 
 Date: 2026-02-18
 

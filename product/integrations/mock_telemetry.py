@@ -1,5 +1,5 @@
 """
-MOCK / SIMULATED telemetry source for AIRDROP-X.
+MOCK / SIMULATED telemetry source for SCYTHE.
 
 This module is for **testing only**. It provides a simple, deterministic
 `TelemetrySource` implementation that:

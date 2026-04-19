@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile product/ui/widgets/status_banner.py)",
+      "Bash(python -m py_compile product/ui/widgets/tactical_map_widget.py)",
+      "Bash(python -m py_compile qt_app/main_window.py)"
+    ]
+  }
+}

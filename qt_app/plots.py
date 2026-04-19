@@ -1,4 +1,4 @@
-"""Matplotlib canvas widgets for AIRDROP-X Qt migration.
+"""Matplotlib canvas widgets for SCYTHE Qt migration.
 
 NOTE: The main window does NOT use this module. It uses product.ui.qt_bridge
 with one figure/canvas per tab and product.ui.tabs.* renderers. This module

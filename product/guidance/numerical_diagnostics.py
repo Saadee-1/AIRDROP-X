@@ -1,5 +1,5 @@
 """
-Numerical diagnostics utilities for AIRDROP-X.
+Numerical diagnostics utilities for SCYTHE.
 These checks are advisory and do not modify engine logic.
 """
 

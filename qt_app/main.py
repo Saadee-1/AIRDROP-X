@@ -1,4 +1,4 @@
-"""AIRDROP-X Qt desktop entrypoint (Phase 1 shell)."""
+"""SCYTHE Qt desktop entrypoint (Phase 1 shell)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from main_window import MainWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
-    app.setApplicationName("AIRDROP-X")
+    app.setApplicationName("SCYTHE")
     window = MainWindow()
     window.show()
     return app.exec()

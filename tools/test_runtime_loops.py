@@ -1,5 +1,5 @@
 """
-Run AIRDROP-X loops for ~12 seconds and capture output to verify they run correctly.
+Run SCYTHE loops for ~12 seconds and capture output to verify they run correctly.
 """
 import sys
 from pathlib import Path

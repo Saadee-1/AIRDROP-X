@@ -1,5 +1,5 @@
 """
-Geometry validation rules for AIRDROP-X payloads.
+Geometry validation rules for SCYTHE payloads.
 Strict structural validation only. No physics.
 """
 

@@ -1,6 +1,6 @@
 """
 Payload Library tab.
-DATA CATALOG for AIRDROP-X.
+DATA CATALOG for SCYTHE.
 Strictly static data. No physics computation.
 """
 
@@ -37,7 +37,7 @@ CD_SOURCE_OPTIONS = [
 #
 # PURPOSE:
 # This library provides a standardized catalog of generic payloads for
-# AIRDROP-X simulation and training scenarios.
+# SCYTHE simulation and training scenarios.
 #
 # DISCLAIMERS:
 # 1. ABSTRACT REPRESENTATION: All payloads are abstract geometric approximations

@@ -1,5 +1,5 @@
 """
-Qt-based desktop application entrypoint for AIRDROP-X.
+Qt-based desktop application entrypoint for SCYTHE.
 
 This wraps the existing engine and Matplotlib-based tab renderers in a
 PyQt6 window with a tab widget. The engine and decision logic remain
@@ -169,11 +169,11 @@ def run_simulation_from_config(
 
 
 class AirdropMainWindow(QMainWindow):
-    """Qt main window hosting the AIRDROP-X tabs."""
+    """Qt main window hosting the SCYTHE tabs."""
 
     def __init__(self, snapshot: Dict[str, Any], telemetry_buffer: Optional[StateBuffer] = None) -> None:
         super().__init__()
-        self.setWindowTitle("AIRDROP-X")
+        self.setWindowTitle("SCYTHE")
 
         # Current immutable simulation snapshot driving all tabs.
         self._snapshot: Dict[str, Any] = snapshot
@@ -357,7 +357,7 @@ class AirdropMainWindow(QMainWindow):
         if self._regen_seed_mode:
             # Non-reproducible mode: draw a fresh seed for this snapshot.
             seed = random.randint(0, 2**31 - 1)
-            print(f"[AIRDROP-X] New non-reproducible seed generated: {seed}")
+            print(f"[SCYTHE] New non-reproducible seed generated: {seed}")
 
         # Attempt to read latest telemetry from StateBuffer.
         telemetry_frame: Optional[TelemetryFrame] = None

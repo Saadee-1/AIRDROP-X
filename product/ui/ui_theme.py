@@ -1,5 +1,5 @@
 """
-AIRDROP-X Tactical UI Theme
+SCYTHE Tactical UI Theme
 Military-grade unified color system and typography scale.
 
 This module provides a single source of truth for all UI styling constants,

@@ -1,5 +1,5 @@
 """
-Monte Carlo convergence test for AIRDROP-X.
+Monte Carlo convergence test for SCYTHE.
 
 Runs Monte Carlo propagation at multiple sample sizes and compares
 impact mean, covariance, and CEP50 against a high-sample baseline.

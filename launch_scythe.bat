@@ -1,5 +1,5 @@
 @echo off
-title AIRDROP-X Launcher
+title SCYTHE Launcher
 cd /d "%~dp0"
 
 REM Check for virtual environment
@@ -24,7 +24,7 @@ if "%PYTHON_CMD%"=="" (
 )
 
 REM Desktop window mode (PySide6, offline)
-echo Starting AIRDROP-X...
+echo Starting SCYTHE...
 %PYTHON_CMD% qt_app\main.py
 
 if errorlevel 1 (

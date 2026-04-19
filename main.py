@@ -1,4 +1,4 @@
-"""CLI and compatibility entrypoint for AIRDROP-X."""
+"""CLI and compatibility entrypoint for SCYTHE."""
 
 from __future__ import annotations
 

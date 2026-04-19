@@ -1,4 +1,4 @@
-"""Telemetry ingestion worker for AIRDROP-X Qt app."""
+"""Telemetry ingestion worker for SCYTHE Qt app."""
 
 from __future__ import annotations
 

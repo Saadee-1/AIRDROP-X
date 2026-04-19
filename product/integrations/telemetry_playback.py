@@ -1,11 +1,11 @@
 """
-Telemetry playback source for AIRDROP-X.
+Telemetry playback source for SCYTHE.
 
 This module provides a `TelemetryPlaybackSource` that reads telemetry frames
 from files (CSV or JSON) and replays them at configurable speeds.
 
 Use cases:
-- Offline validation of AIRDROP-X with recorded telemetry
+- Offline validation of SCYTHE with recorded telemetry
 - Reproducible experiments with known telemetry sequences
 - Paper-ready results using consistent telemetry datasets
 

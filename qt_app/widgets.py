@@ -1,4 +1,4 @@
-"""Reusable Qt widgets for AIRDROP-X Phase 1 shell."""
+"""Reusable Qt widgets for SCYTHE Phase 1 shell."""
 
 from __future__ import annotations
 

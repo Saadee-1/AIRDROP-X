@@ -1,5 +1,5 @@
 """
-Debugging visualization for AIRDROP-X release envelope.
+Debugging visualization for SCYTHE release envelope.
 
 Plots the offset–probability curve and optional heatmap P_hit(offset, time).
 Does not modify any engine code.
@@ -80,7 +80,7 @@ def main():
     ax1.plot(offsets, smoothed_p_hit, "g-", label="smoothed_p_hit", linewidth=2)
     ax1.set_xlabel("Lateral offset (m)")
     ax1.set_ylabel("Hit probability")
-    ax1.set_title("AIRDROP-X Release Envelope (Offset Probability Curve)")
+    ax1.set_title("SCYTHE Release Envelope (Offset Probability Curve)")
     ax1.legend()
     ax1.set_ylim(-0.05, 1.05)
     ax1.grid(True, alpha=0.3)
@@ -119,7 +119,7 @@ def main():
 
         ax2.set_xlabel("Release time (s)")
         ax2.set_ylabel("Lateral offset (m)")
-        ax2.set_title("AIRDROP-X Release Envelope Heatmap")
+        ax2.set_title("SCYTHE Release Envelope Heatmap")
         fig2.tight_layout()
         fig2.savefig(Path(__file__).parent / "release_envelope_heatmap.png", dpi=150)
         plt.show()

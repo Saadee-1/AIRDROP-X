@@ -1,4 +1,4 @@
-# AIRDROP-X Simulation Framework
+# SCYTHE Simulation Framework
 
 Probabilistic guidance and decision-support simulation for precision
 unpowered payload delivery from UAV platforms.

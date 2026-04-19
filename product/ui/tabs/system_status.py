@@ -20,7 +20,7 @@ from typing import Any, Dict, List
 def _defaults() -> Dict[str, Any]:
     """Default display values when not passed from layout."""
     return {
-        "system_name": "AIRDROP-X",
+        "system_name": "SCYTHE",
         "version": "1.1",
         "build_id": "--",
         "physics_description": (

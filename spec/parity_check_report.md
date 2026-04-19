@@ -1,4 +1,4 @@
-# AIRDROP-X Qt Parity Check Report
+# SCYTHE Qt Parity Check Report
 
 Date: 2026-02-18
 Reference: `spec/parity_acceptance_checklist.md`

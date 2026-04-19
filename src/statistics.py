@@ -1,5 +1,5 @@
 """
-Statistical utilities for AIRDROP-X decision layer.
+Statistical utilities for SCYTHE decision layer.
 Wilson score interval for binomial proportion confidence.
 """
 from __future__ import annotations

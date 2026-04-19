@@ -1,4 +1,4 @@
-# AIRDROP-X Streamlit -> PySide6 Parity Tracker
+# SCYTHE Streamlit -> PySide6 Parity Tracker
 
 Date: 2026-02-18  
 Mode: Spec-first migration (no redesign)

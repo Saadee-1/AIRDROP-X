@@ -1,7 +1,7 @@
-PyInstaller quick-start notes for AIRDROP-X Qt app
+PyInstaller quick-start notes for SCYTHE Qt app
 ===================================================
 
-A full spec file is provided: airdrop_x_qt.spec. Use it to build the
+A full spec file is provided: scythe_qt.spec. Use it to build the
 one-folder Windows bundle (qt_app.py as entrypoint).
 
 Install PyInstaller (optional, for packaging only):
@@ -11,11 +11,11 @@ Install PyInstaller (optional, for packaging only):
 Build from project root
 -----------------------
 
-    pyinstaller --noconfirm --clean airdrop_x_qt.spec
+    pyinstaller --noconfirm --clean scythe_qt.spec
 
 Or without the spec file (minimal):
 
-    pyinstaller --noconfirm --clean --name AIRDROP-X --windowed qt_app.py
+    pyinstaller --noconfirm --clean --name SCYTHE --windowed qt_app.py
 
 Key notes
 ---------
@@ -31,5 +31,5 @@ Key notes
   is collected by PyInstaller (recent versions handle this automatically).
 
 After running the command, the standalone EXE will be placed under
-`dist/AIRDROP-X/` on Windows.
+`dist/SCYTHE/` on Windows.
 

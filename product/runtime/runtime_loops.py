@@ -1,5 +1,5 @@
 """
-Runtime loop implementations for AIRDROP-X.
+Runtime loop implementations for SCYTHE.
 
 Each loop runs in its own thread at a fixed update rate and reads/writes
 shared `SystemState` to connect telemetry, planner, guidance, and UI.

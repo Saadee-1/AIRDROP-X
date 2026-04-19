@@ -73,7 +73,7 @@ def _run_monte_carlo_adaptive(
     target_xy = np.asarray(target_pos, dtype=float).flatten()[:2]
     radius = float(target_radius)
 
-    # Adaptive sampling parameters (AIRDROP-X doctrine).
+    # Adaptive sampling parameters (SCYTHE doctrine).
     ci_width_target = 0.05
     initial_batch = 200
     batch_size = 100

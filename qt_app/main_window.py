@@ -1,4 +1,4 @@
-"""AIRDROP-X Phase 1 PySide6 main window shell."""
+"""SCYTHE Phase 1 PySide6 main window shell."""
 
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 from product.runtime.system_state import SystemState
 from product.ui.tactical_map_controller import TacticalMapController
 from product.ui.tabs.tactical_map_tab import TacticalMapTab
+from product.ui.widgets.status_banner import DropStatus, DropReason
 from product.ui.tabs import (
     analysis as analysis_tab_renderer,
     mission_overview as mission_overview_tab_renderer,
@@ -156,7 +157,7 @@ class MainWindow(QMainWindow):
         self._live_timer.setInterval(200)  # 5 Hz
         self._live_timer.timeout.connect(self._auto_evaluate)
 
-        self.setWindowTitle("AIRDROP-X")
+        self.setWindowTitle("SCYTHE")
         self.setMinimumSize(1200, 800)
         self._build_ui()
         self._apply_theme()
@@ -242,6 +243,10 @@ class MainWindow(QMainWindow):
             cfg = dict(self.config_state.data)
         self.mission_config_tab.init_from_config(cfg)
         self.mission_config_tab.apply_system_mode(self.system_mode)
+        self.tactical_map_widget._status_banner.navigate_to_tab.connect(self._switch_to_tab)
+        self.tactical_map_widget._status_banner.set_status(
+            DropStatus.NO_DROP, DropReason.MISSION_PARAMS_NOT_SET
+        )
         tr = float(cfg.get("target_radius", 5.0))
         tr_clamp = min(50.0, max(0.5, tr))
         self.target_radius_spinbox.setValue(tr_clamp)
@@ -707,7 +712,10 @@ class MainWindow(QMainWindow):
         self._latest_snapshot = base
         self.app_state = AppState.PAYLOAD_SELECTED
         self._update_summary_strip_after_commit()
-        self.main_tabs.setCurrentWidget(self.mission_tab)
+        self.main_tabs.setCurrentIndex(0)
+        self.tactical_map_widget._status_banner.set_status(
+            DropStatus.NO_DROP, DropReason.UAV_TOO_FAR
+        )
         self._render_mission_tab()
         self._render_system_tab()
         self._update_app_state_ui()
@@ -1556,6 +1564,9 @@ class MainWindow(QMainWindow):
     def _on_tab_changed(self, index: int) -> None:
         """Handle tab change."""
         pass
+
+    def _switch_to_tab(self, index: int) -> None:
+        self.main_tabs.setCurrentIndex(index)
 
     def _refresh_mode_buttons(self) -> None:
         if not hasattr(self, 'operator_btn') or not hasattr(self, 'engineering_btn'):

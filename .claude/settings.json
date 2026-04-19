@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(python -m py_compile qt_app/main.py)",
+      "Bash(python -m py_compile qt_app.py)",
+      "Bash(python -m py_compile product/runtime/run_scythe.py)",
+      "Bash(python -m py_compile product/ui/tabs/system_status.py)"
+    ]
+  }
+}

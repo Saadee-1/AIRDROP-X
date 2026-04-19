@@ -1,5 +1,5 @@
 """
-Telemetry health checks for AIRDROP-X.
+Telemetry health checks for SCYTHE.
 
 This module provides advisory health checks for telemetry sources. These checks
 are **informational only** and do NOT block simulation or disable controls.

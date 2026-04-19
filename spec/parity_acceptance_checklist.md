@@ -1,4 +1,4 @@
-# AIRDROP-X Qt Parity Acceptance Checklist
+# SCYTHE Qt Parity Acceptance Checklist
 
 Use this as pass/fail gate against `spec/streamlit_baseline/app.py.reference`.
 

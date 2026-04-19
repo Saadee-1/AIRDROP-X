@@ -1,5 +1,5 @@
 """
-Standard, drone-agnostic telemetry data contract for AIRDROP-X.
+Standard, drone-agnostic telemetry data contract for SCYTHE.
 
 This module defines:
 
@@ -27,7 +27,7 @@ AttitudeRPY = Tuple[float, float, float]
 @dataclass(frozen=True)
 class TelemetryFrame:
     """
-    One telemetry snapshot as seen by AIRDROP-X at a given time.
+    One telemetry snapshot as seen by SCYTHE at a given time.
 
     All units and frames are explicitly documented to support auditability.
 
@@ -71,7 +71,7 @@ class TelemetryFrame:
         - \"replayed\"  : from a log file
         - \"simulated\" : from an offline simulation
 
-        AIRDROP-X treats this as metadata only; no behavior is implied.
+        SCYTHE treats this as metadata only; no behavior is implied.
     """
 
     timestamp: float

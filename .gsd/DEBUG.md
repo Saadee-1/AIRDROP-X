@@ -5,7 +5,7 @@
 The Streamlit web preview (`app.py`) does not launch when run.
 
 **When:** On `streamlit run app.py`
-**Expected:** Browser opens with AIRDROP-X web UI at localhost:8501
+**Expected:** Browser opens with SCYTHE web UI at localhost:8501
 **Actual:** `ModuleNotFoundError: No module named 'streamlit'`
 
 ## Evidence

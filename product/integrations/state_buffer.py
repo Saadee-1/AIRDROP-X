@@ -1,5 +1,5 @@
 """
-StateBuffer for AIRDROP-X telemetry.
+StateBuffer for SCYTHE telemetry.
 
 This module provides a minimal, thread-safe container for the **latest**
 `TelemetryFrame` received from any TelemetrySource.

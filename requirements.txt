@@ -1,4 +1,4 @@
-# AIRDROP-X runtime (offline PySide6 desktop app + engine)
+# SCYTHE runtime (offline PySide6 desktop app + engine)
 numpy>=1.20
 scipy>=1.8
 matplotlib>=3.5

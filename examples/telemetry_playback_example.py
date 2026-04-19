@@ -4,7 +4,7 @@ Example usage of TelemetryPlaybackSource.
 This demonstrates how to:
 - Load telemetry from CSV or JSON files
 - Replay at real-time or accelerated speeds
-- Feed frames into StateBuffer for AIRDROP-X consumption
+- Feed frames into StateBuffer for SCYTHE consumption
 """
 
 from product.integrations.state_buffer import StateBuffer

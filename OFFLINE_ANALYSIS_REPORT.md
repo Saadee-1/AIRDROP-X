@@ -1,4 +1,4 @@
-# AIRDROP-X Offline Analysis Report
+# SCYTHE Offline Analysis Report
 
 Date: 2026-02-18
 

@@ -1,5 +1,5 @@
 """
-Runtime system state for AIRDROP-X.
+Runtime system state for SCYTHE.
 
 Holds shared state between telemetry, planner, guidance, and UI loops.
 """

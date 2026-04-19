@@ -1,5 +1,5 @@
 """
-Startup script for AIRDROP-X runtime loops.
+Startup script for SCYTHE runtime loops.
 
 Wires together:
   - TelemetryLoop (50 Hz)
@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-# Ensure project root is on the module path (run_airdropx lives in product/runtime/).
+# Ensure project root is on the module path (run_scythe lives in product/runtime/).
 _project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_project_root))
 
@@ -47,7 +47,7 @@ def main() -> None:
 
     loops = [telemetry, guidance, ui, planner]
 
-    print("[Runtime] Starting AIRDROP-X loops. Press Ctrl+C to stop.")
+    print("[Runtime] Starting SCYTHE loops. Press Ctrl+C to stop.")
     for loop in loops:
         loop.start()
 

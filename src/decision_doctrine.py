@@ -1,5 +1,5 @@
 """
-Decision doctrine evaluator for AIRDROP-X.
+Decision doctrine evaluator for SCYTHE.
 Operator-selectable statistical doctrine for drop decision.
 """
 from __future__ import annotations
