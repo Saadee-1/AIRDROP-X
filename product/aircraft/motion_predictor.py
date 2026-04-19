@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from product.aircraft.vehicle_state import VehicleState
+from product.ui.widgets.status_banner import DropStatus
 
 
 class MotionPredictor:
@@ -56,3 +57,7 @@ class MotionPredictor:
             np.asarray(position, dtype=float).reshape(3),
             np.asarray(velocity, dtype=float).reshape(3),
         )
+
+    def get_drop_status(self) -> DropStatus:
+        # TODO: Implement real drop status logic based on corridor, zone, and timing
+        return DropStatus.NO_DROP

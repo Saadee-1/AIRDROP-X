@@ -5,9 +5,10 @@ import random
 from typing import Iterable, List, Tuple
 
 from PySide6.QtCore import QPointF, Qt, QRectF
-from PySide6.QtGui import QBrush, QFont, QPen, QPolygonF, QPainter, QColor
+from PySide6.QtGui import QBrush, QFont, QPen, QPolygonF, QPainter, QColor, QTransform
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
+    QGraphicsItem,
     QGraphicsItemGroup,
     QGraphicsLineItem,
     QGraphicsPolygonItem,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from product.ui.map_transform import MapTransform
+from product.ui.widgets.status_banner import StatusBannerWidget, DropStatus
 
 
 class UAVMarker(QGraphicsPolygonItem):
@@ -26,15 +28,16 @@ class UAVMarker(QGraphicsPolygonItem):
     def __init__(self) -> None:
         poly = QPolygonF(
             [
-                QPointF(12.5, 0.0),
-                QPointF(-12.5, -7.5),
-                QPointF(-12.5, 7.5),
+                QPointF(15.0, 0.0),
+                QPointF(-10.0, -7.0),
+                QPointF(-10.0, 7.0),
             ]
         )
         super().__init__(poly)
         self.setPen(QPen(QColor("#00ff41"), 1.5))
         self.setBrush(QBrush(QColor("#00ff41")))
         self.setTransformOriginPoint(0.0, 0.0)
+        self.setFlag(QGraphicsItem.ItemIgnoresTransformations)
 
     def set_position(self, x: float, y: float) -> None:
         self.setPos(float(x), float(y))
@@ -288,6 +291,7 @@ class WindHUDItem(QGraphicsLineItem):
         self._label.setFont(font)
         self._label.setDefaultTextColor(QColor("#77bfff"))
         self._label.setZValue(100)
+        self._label.setTransform(QTransform().scale(1.0, -1.0))
         scene.addItem(self._label)
 
     def update_wind(self, wind_x: float, wind_y: float) -> None:
@@ -333,6 +337,7 @@ class BoundaryIndicator:
         self._label.setFont(QFont("Consolas", 10))
         self._label.setDefaultTextColor(QColor("#00ffff"))
         self._label.setZValue(100)
+        self._label.setTransform(QTransform().scale(1.0, -1.0))
         scene.addItem(self._label)
 
         self.set_visible(False)
@@ -394,6 +399,7 @@ class DriftArrow:
         self._label.setFont(QFont("Consolas", 9))
         self._label.setDefaultTextColor(QColor("#ff9933"))
         self._label.setZValue(100)
+        self._label.setTransform(QTransform().scale(1.0, -1.0))
         scene.addItem(self._label)
 
     def update(self, x1: float, y1: float, x2: float, y2: float) -> None:
@@ -673,6 +679,16 @@ class ImpactHeatmapLayer:
 class TacticalMapWidget(QGraphicsView):
     """QGraphicsView-based tactical map widget."""
 
+    def _make_text_item(self, text: str, x: float, y: float, color: QColor, font: QFont | None = None) -> QGraphicsTextItem:
+        item = QGraphicsTextItem(text)
+        item.setDefaultTextColor(color)
+        if font:
+            item.setFont(font)
+        item.setTransform(QTransform().scale(1.0, -1.0))  # Counter-flip for ENU Y-up
+        item.setPos(x, y)
+        self.scene.addItem(item)
+        return item
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.scene = QGraphicsScene(self)
@@ -686,35 +702,39 @@ class TacticalMapWidget(QGraphicsView):
         self.setSceneRect(-1000.0, -1000.0, 2000.0, 2000.0)
         self._base_scene_rect = self.scene.sceneRect()
 
-        self._transform = MapTransform(scale=1.0, origin_x=0.0, origin_y=0.0)
-        self.zoom_level = 3.0
+        # COORDINATE FRAME CONTRACT
+        # World/Physics frame: ENU (X=East, Y=North, Z=Up) in meters
+        # Scene frame: ENU-aligned (X=right=East, Y=up=North)
+        # Y-axis flip applied ONCE at widget init via MapTransform.apply_to_view()
+        # Mouse input handled in mousePressEvent with mapToScene (same orientation)
+        # NO per-frame conversion elsewhere
+
+        self._transform = MapTransform(pixels_per_meter=1.4)
         self._panning = False
         self._last_pan_pos = None
-        self.follow_uav = False
+        self.follow_uav = True
         self.focus_mode = False
         self.focus_radius = 300.0
 
         # All items are persistent scene objects created once at init.
         self._grid_items: List[QGraphicsLineItem] = []
-        self._draw_grid()
-        self._draw_north_indicator()
+        self._update_grid()
         self._initial_center_done = False
 
         self.target_marker = TargetMarker()
         self.scene.addItem(self.target_marker)
         self.uav_marker = UAVMarker()
         self.scene.addItem(self.uav_marker)
-        self._uav_tail = QGraphicsLineItem()
+        self._uav_tail = QGraphicsLineItem(0.0, 0.0, -30.0, 0.0)
         self._uav_tail.setPen(QPen(QColor("#00ffff"), 2))
+        self._uav_tail.setFlag(QGraphicsItem.ItemIgnoresTransformations)
+        self._uav_tail.setTransformOriginPoint(0.0, 0.0)
         self.scene.addItem(self._uav_tail)
         self.uav_marker.setZValue(7)
         self._uav_tail.setZValue(6.5)
 
-        self._cep_label = QGraphicsTextItem("")
-        self._cep_label.setDefaultTextColor(QColor("#00ff41"))
-        self._cep_label.setFont(QFont("Consolas", 9))
+        self._cep_label = self._make_text_item("", 0, 0, QColor("#00ff41"), QFont("Consolas", 9))
         self._cep_label.setZValue(100)
-        self.scene.addItem(self._cep_label)
 
         self.impact_layer = ImpactEllipseLayer(self.scene)
         self.corridor_layer = CorridorLayer(self.scene)
@@ -735,98 +755,104 @@ class TacticalMapWidget(QGraphicsView):
         self._last_target_scene_pos: Tuple[float, float] | None = None
         self._corridor_collapsed = False
 
-        self._banner_item = QGraphicsTextItem("")
+        self._banner_item = self._make_text_item("", 0, 0, QColor("#ffaa00"), QFont("Consolas", 14))
         banner_font = QFont("Consolas", 14)
         banner_font.setBold(True)
         self._banner_item.setFont(banner_font)
         self._banner_item.setZValue(100)
-        self.scene.addItem(self._banner_item)
         self._banner_flash_on = True
         self._banner_timer = None
 
         self._scale_bar_line = QGraphicsLineItem()
         self._scale_bar_tick_a = QGraphicsLineItem()
         self._scale_bar_tick_b = QGraphicsLineItem()
-        self._scale_bar_text = QGraphicsTextItem("0 ----- 50m")
+        self._scale_bar_text = self._make_text_item("0 ----- 50m", 0, 0, QColor("#00ff41"), QFont("Consolas", 9))
         for item in (self._scale_bar_line, self._scale_bar_tick_a, self._scale_bar_tick_b, self._scale_bar_text):
             item.setZValue(100)
             self.scene.addItem(item)
         self._update_scale_bar()
 
-        self._fps_label = QGraphicsTextItem("")
-        self._fps_label.setFont(QFont("Consolas", 9))
-        self._fps_label.setDefaultTextColor(QColor("#00ff41"))
-        self._fps_label.setZValue(100)
-        self.scene.addItem(self._fps_label)
-
-        self._wind_warning = QGraphicsTextItem("")
-        self._wind_warning.setFont(QFont("Consolas", 9))
-        self._wind_warning.setDefaultTextColor(QColor("#ffaa00"))
+        self._wind_warning = self._make_text_item("", 0, 0, QColor("#ffaa00"), QFont("Consolas", 9))
         self._wind_warning.setZValue(100)
-        self.scene.addItem(self._wind_warning)
 
-        self._tdrop_label = QGraphicsTextItem("")
-        self._tdrop_label.setFont(QFont("Consolas", 9))
-        self._tdrop_label.setDefaultTextColor(QColor("#ffffff"))
+        self._tdrop_label = self._make_text_item("", 0, 0, QColor("#ffffff"), QFont("Consolas", 9))
         self._tdrop_label.setZValue(100)
-        self.scene.addItem(self._tdrop_label)
 
-        self._phit_label = QGraphicsTextItem("")
-        self._phit_label.setFont(QFont("Consolas", 9))
-        self._phit_label.setDefaultTextColor(QColor("#00ff41"))
+        self._phit_label = self._make_text_item("", 0, 0, QColor("#00ff41"), QFont("Consolas", 9))
         self._phit_label.setZValue(100)
-        self.scene.addItem(self._phit_label)
 
-        self.resetTransform()
-        self.scale(self.zoom_level, self.zoom_level)
+        self._transform.apply_to_view(self)
         self.centerOn(0.0, 0.0)
 
         self._validate_startup()
 
-    def _draw_grid(self) -> None:
-        minor_pen = QPen(Qt.darkGray, 0)
-        major_pen = QPen(Qt.darkGray, 1)
+        self._status_banner = StatusBannerWidget(self.viewport())
+        self._reposition_status_banner()
+        self._status_banner.show()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if not self._initial_center_done:
+            self._initial_center_done = True
+            self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+            current_scale = abs(self.transform().m11())
+            if current_scale > 0:
+                self._transform.pixels_per_meter = current_scale
+            self._update_grid()
+
+    def _update_grid(self) -> None:
+        for item in self._grid_items:
+            self.scene.removeItem(item)
+        self._grid_items.clear()
+
+        ppm = self._transform.pixels_per_meter
+        if ppm < 0.3:
+            spacing = 1000
+        elif ppm < 0.8:
+            spacing = 500
+        elif ppm < 2.0:
+            spacing = 200
+        elif ppm < 5.0:
+            spacing = 100
+        elif ppm < 15.0:
+            spacing = 50
+        else:
+            spacing = 10
+        major_every = spacing * 5
+
+        minor_pen = QPen(QColor(40, 40, 40), 0)
+        major_pen = QPen(QColor(70, 70, 70), 1)
         minor_pen.setCosmetic(True)
         major_pen.setCosmetic(True)
 
-        extent = 1000
-        spacing = 50
-        major_every = 250
-
+        extent = 2000
         for x in range(-extent, extent + spacing, spacing):
             pen = major_pen if (x % major_every == 0) else minor_pen
             line = self.scene.addLine(x, -extent, x, extent, pen)
             line.setZValue(0)
             self._grid_items.append(line)
+
         for y in range(-extent, extent + spacing, spacing):
             pen = major_pen if (y % major_every == 0) else minor_pen
             line = self.scene.addLine(-extent, y, extent, y, pen)
             line.setZValue(0)
             self._grid_items.append(line)
 
-    def _draw_north_indicator(self) -> None:
-        x = -900.0
-        y = 850.0
-        self.scene.addLine(x, y, x, y + 80.0, QPen(QColor("#00ff41"), 2))
-        head = QGraphicsPolygonItem(
-            QPolygonF(
-                [
-                    QPointF(x, y + 90.0),
-                    QPointF(x - 8.0, y + 70.0),
-                    QPointF(x + 8.0, y + 70.0),
-                ]
-            )
-        )
-        head.setBrush(QBrush(QColor("#00ff41")))
-        head.setPen(QPen(QColor("#00ff41"), 1))
-        self.scene.addItem(head)
-        label = QGraphicsTextItem("N")
-        font = QFont("Consolas", 10)
-        font.setBold(True)
-        label.setFont(font)
-        label.setDefaultTextColor(QColor("#00ff41"))
-        label.setPos(x - 6.0, y + 95.0)
-        self.scene.addItem(label)
+    def resizeEvent(self, event) -> None:
+        self._reposition_status_banner()
+        super().resizeEvent(event)
+        self._update_grid()
+
+    def _reposition_status_banner(self):
+        if hasattr(self, '_status_banner'):
+            viewport = self.viewport()
+            vw = viewport.width()
+            banner_w = 320
+            banner_h = 44
+            x = (vw - banner_w) // 2
+            y = 10
+            self._status_banner.setGeometry(x, y, banner_w, banner_h)
+
 
     # ---- Public update methods (no item creation) ----
 
@@ -835,11 +861,8 @@ class TacticalMapWidget(QGraphicsView):
         sx, sy = self._transform.world_to_scene(x, y)
         self.uav_marker.set_position(sx, sy)
         self.uav_marker.set_heading(heading)
-        tail_len = 40.0
-        angle = math.radians(float(heading))
-        tx = sx - math.cos(angle) * tail_len
-        ty = sy - math.sin(angle) * tail_len
-        self._uav_tail.setLine(sx, sy, tx, ty)
+        self._uav_tail.setPos(sx, sy)
+        self._uav_tail.setRotation(float(heading))
         self._last_uav_scene_pos = (sx, sy)
         self.trail_layer.update(sx, sy)
         if self.follow_uav:
@@ -864,8 +887,8 @@ class TacticalMapWidget(QGraphicsView):
     def update_impact_ellipse(self, mean_x: float, mean_y: float, a: float, b: float, angle: float) -> None:
         # Persistent items: update only geometry.
         sx, sy = self._transform.world_to_scene(mean_x, mean_y)
-        sa = float(a) * self._transform.scale
-        sb = float(b) * self._transform.scale
+        sa = float(a) * self._transform.pixels_per_meter
+        sb = float(b) * self._transform.pixels_per_meter
         self.impact_layer.update(sx, sy, sa, sb, angle)
         self._update_cep_label(a, b)
 
@@ -910,10 +933,10 @@ class TacticalMapWidget(QGraphicsView):
         anchor_x = self.scene.sceneRect().left() + 20.0
         anchor_y = self.scene.sceneRect().top() + 20.0
         self.wind_vector.set_anchor(anchor_x, anchor_y)
-        sx = float(wind_x) * self._transform.scale
-        sy = float(wind_y) * self._transform.scale
+        sx = float(wind_x) * self._transform.pixels_per_meter
+        sy = float(wind_y) * self._transform.pixels_per_meter
         self.wind_vector.update_wind(sx, sy)
-        self.wind_field.update_field(sx, sy, self.zoom_level, self._last_target_scene_pos)
+        self.wind_field.update_field(sx, sy, self._transform.pixels_per_meter, self._last_target_scene_pos)
 
     def update_scatter(self, points: Iterable[Tuple[float, float]]) -> None:
         if not self.show_scatter:
@@ -929,19 +952,47 @@ class TacticalMapWidget(QGraphicsView):
     # ---- Interaction ----
 
     def wheelEvent(self, event) -> None:  # noqa: N802
-        delta = event.angleDelta().y()
-        if delta == 0:
+        modifiers = event.modifiers()
+        angle_delta = event.angleDelta()
+        pixel_delta = event.pixelDelta()
+
+        # ZOOM: Only when Ctrl is held
+        if modifiers & Qt.ControlModifier:
+            delta = angle_delta.y()
+            if delta == 0:
+                return
+            factor = 1.15 if delta > 0 else 1.0 / 1.15
+            mouse_pos = event.position().toPoint()
+            old_pos = self.mapToScene(mouse_pos)
+            new_ppm = self._transform.pixels_per_meter * factor
+            new_ppm = max(0.1, min(50.0, new_ppm))
+            if abs(new_ppm - self._transform.pixels_per_meter) < 1e-9:
+                return
+            self._transform.pixels_per_meter = new_ppm
+            self._transform.apply_to_view(self)
+            new_pos = self.mapToScene(mouse_pos)
+            delta_scene = new_pos - old_pos
+            self.translate(delta_scene.x(), delta_scene.y())
+            self._update_scale_bar()
+            self._update_grid()
+            event.accept()
             return
-        factor = 1.15 if delta > 0 else 1.0 / 1.15
-        next_scale = self.zoom_level * factor
-        min_scale = 0.1
-        max_scale = 50.0
-        if next_scale < min_scale or next_scale > max_scale:
+
+        # PAN: All scroll without Ctrl (trackpad or mouse)
+        # Use pixelDelta if available (Linux/Mac trackpad)
+        if not pixel_delta.isNull():
+            dx = pixel_delta.x() / self._transform.pixels_per_meter
+            dy = -pixel_delta.y() / self._transform.pixels_per_meter
+            self.translate(dx, dy)
+            event.accept()
             return
-        self.zoom_level = next_scale
-        self.resetTransform()
-        self.scale(self.zoom_level, self.zoom_level)
-        self._update_scale_bar()
+
+        # Use angleDelta for pan (Windows trackpad or mouse without Ctrl)
+        dx = angle_delta.x() / self._transform.pixels_per_meter
+        dy = -angle_delta.y() / self._transform.pixels_per_meter
+        if abs(dx) > 0.001 or abs(dy) > 0.001:
+            self.translate(dx, dy)
+            event.accept()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MiddleButton:
@@ -950,6 +1001,15 @@ class TacticalMapWidget(QGraphicsView):
             self.setCursor(Qt.ClosedHandCursor)
             event.accept()
             return
+
+        if event.button() == Qt.LeftButton:
+            scene_pos = self.mapToScene(event.pos())
+            world_x = scene_pos.x()
+            world_y = scene_pos.y()
+            self.update_target(world_x, world_y)
+            event.accept()
+            return
+
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
@@ -1053,7 +1113,7 @@ class TacticalMapWidget(QGraphicsView):
         self._banner_item.setVisible(self._banner_flash_on)
 
     def _update_scale_bar(self) -> None:
-        length = 50.0 * self._transform.scale * self.zoom_level
+        length = 50.0 * self._transform.pixels_per_meter
         rect = self.scene.sceneRect()
         x = rect.left() + 20.0
         y = rect.bottom() + 20.0
@@ -1079,23 +1139,8 @@ class TacticalMapWidget(QGraphicsView):
 
     def normalize_transform(self) -> None:
         center = self.mapToScene(self.viewport().rect().center())
-        self.resetTransform()
-        self.scale(self.zoom_level, self.zoom_level)
+        self._transform.apply_to_view(self)
         self.centerOn(center)
-
-    def update_fps(self, fps: float) -> None:
-        if fps <= 0:
-            self._fps_label.setPlainText("")
-            return
-        color = QColor("#00ff41")
-        if fps < 15:
-            color = QColor("#ff3333")
-        elif fps < 25:
-            color = QColor("#ffcc33")
-        self._fps_label.setDefaultTextColor(color)
-        self._fps_label.setPlainText(f"UI FPS: {fps:.0f}")
-        rect = self.scene.sceneRect()
-        self._fps_label.setPos(rect.left() + 20.0, rect.top() + 40.0)
 
     def update_wind_warning(self, show: bool) -> None:
         if not show:

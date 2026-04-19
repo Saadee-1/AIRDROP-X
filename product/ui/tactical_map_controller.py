@@ -8,16 +8,17 @@ from PySide6.QtCore import QObject, QTimer
 
 from product.runtime.system_state import SystemState
 from product.system.tactical_map_state import TacticalMapState
-from product.ui.widgets.tactical_map_widget import TacticalMapWidget
+from product.ui.tabs.tactical_map_tab import TacticalMapTab
 
 
 class TacticalMapController(QObject):
     """Bridge SystemState to TacticalMapWidget at ~30 Hz."""
 
-    def __init__(self, system_state: SystemState, widget: TacticalMapWidget, parent: Optional[QObject] = None) -> None:
+    def __init__(self, system_state: SystemState, tab: TacticalMapTab, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._state = system_state
-        self._widget = widget
+        self._tab = tab
+        self._widget = tab.map_widget
         self._timer = QTimer(self)
         self._timer.setInterval(33)
         self._timer.timeout.connect(self._on_tick)
@@ -37,8 +38,6 @@ class TacticalMapController(QObject):
             interval = now - self._last_tick
             if interval > 0.05:
                 print("[TacticalMap] UI lag detected")
-            if interval > 0:
-                self._widget.update_fps(1.0 / interval)
         self._last_tick = now
         self._frame_count += 1
         if self._frame_count % 300 == 0:
@@ -74,6 +73,17 @@ class TacticalMapController(QObject):
 
         if isinstance(tactical_state, TacticalMapState):
             self._apply_tactical_state(tactical_state, vehicle_pos)
+            ub = tactical_state.uncertainty_breakdown or {}
+            self._tab.update_uncertainty_bars(
+                ub.get("wind", 0.0),
+                ub.get("drag", 0.0),
+                ub.get("release", 0.0),
+                ub.get("vehicle", 0.0),
+                ub.get("wind", 0.0),
+                ub.get("drag", 0.0),
+                ub.get("release", 0.0),
+                ub.get("vehicle", 0.0),
+            )
         else:
             self._apply_envelope_state(envelope_result, vehicle_pos)
 

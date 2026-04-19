@@ -163,7 +163,7 @@ class MainWindow(QMainWindow):
         self._refresh_mode_buttons()
         self._start_telemetry()
         self.tactical_map_controller = TacticalMapController(
-            self.system_state, self.tactical_map.map_widget, parent=self
+            self.system_state, self.tactical_map, parent=self
         )
         self.tactical_map_controller.start()
 

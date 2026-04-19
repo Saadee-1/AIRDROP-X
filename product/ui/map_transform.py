@@ -7,24 +7,31 @@ import math
 
 @dataclass
 class MapTransform:
-    scale: float = 1.0
-    origin_x: float = 0.0
-    origin_y: float = 0.0
+    pixels_per_meter: float = 1.4
 
     def __post_init__(self) -> None:
-        self._validate_scale(self.scale)
+        self._validate_scale(self.pixels_per_meter)
+
+    @property
+    def scale(self) -> float:
+        return self.pixels_per_meter
+
+    @scale.setter
+    def scale(self, value: float) -> None:
+        self._validate_scale(value)
+        self.pixels_per_meter = value
 
     def world_to_scene(self, x: float, y: float) -> Tuple[float, float]:
-        self._validate_scale(self.scale)
-        scene_x = (float(x) - self.origin_x) * self.scale
-        scene_y = (float(y) - self.origin_y) * self.scale
-        return scene_x, scene_y
+        return float(x), float(y)
 
     def scene_to_world(self, x: float, y: float) -> Tuple[float, float]:
-        self._validate_scale(self.scale)
-        world_x = float(x) / self.scale + self.origin_x
-        world_y = float(y) / self.scale + self.origin_y
-        return world_x, world_y
+        return float(x), float(y)
+
+    def apply_to_view(self, view) -> None:
+        center = view.mapToScene(view.viewport().rect().center())
+        view.resetTransform()
+        view.scale(self.pixels_per_meter, -self.pixels_per_meter)
+        view.centerOn(center)
 
     @staticmethod
     def _validate_scale(scale: float) -> None:
