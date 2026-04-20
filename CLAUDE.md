@@ -177,8 +177,9 @@ Acceleration clamped: ||a|| <= 15 m/s^2
   wx/wy bias errors. rho=0.3 is conservative fixed coefficient.
   Positive definiteness: det(2x2 wind block) = var_wind^2*(1-rho^2) > 0
 
-  Sigma point propagations currently sequential.
-  Optimization (batch all 11): PENDING — do not implement until profiled.
+  Sigma point propagations batched: all 11 sigma points propagated in a
+  single _propagate_payload_batch call via pos0_batch/vel0_batch and
+  (11,3) wind_ref. Previously 11 sequential N=1 calls.
 
 ### 7.10 Impact Distribution
   Modeled as Gaussian: mean=mu_impact, covariance=Sigma_impact
@@ -452,6 +453,14 @@ DROP_NOW                     | "Release payload immediately"                    
    (advisory_layer.py). Wilson CI early stopping, initial_batch=200,
    batch_size=100, min_samples=300, ci_width_target=0.05, max_samples≤1000.
 
+1b. Sigma point batch optimization: DONE.
+    Sequential 11 calls → 1 batch call in unscented_propagation.py.
+    Interim numpy-vectorization to reduce BackgroundPlannerLoop GIL hold
+    time; multiprocessing split still pending supervisor review.
+    run_monte_carlo is already fully batch-vectorized (no per-sample
+    Python loop); wind sampling uses rng.normal(size=(N,3)). No change
+    applied there under Rule 6 (RK2 untouchable).
+
 2. Gust Model: Dryden or Von Karman turbulence.
    Adds gust_x(t), gust_y(t), gust_z(t) to wind.
 
@@ -533,6 +542,27 @@ DROP_NOW                     | "Release payload immediately"                    
   telemetry is ever ingested concurrently with TelemetryLoop, they race.
   Not a bug today (simulated path is the default) but flag before enabling
   LIVE mode end-to-end.
+
+- Lock contention investigation — RESOLVED AS NON-ISSUE. Diagnostic lag
+  breakdown showed A=60 ms / B=0.3 ms / C=0.0 ms in _on_tick; suspected
+  to be SystemState.lock contention from BackgroundPlannerLoop. Audit of
+  both BackgroundPlannerLoop.tick() and GuidanceLoop.tick() confirmed
+  correct pattern already in place: lock(read inputs) → unlock →
+  compute OUTSIDE lock → lock(write output). Neither loop holds the
+  mutex during compute_release_envelope or compute_corridor_guidance.
+  True cause of the 60 ms stall is Python GIL contention, not mutex
+  contention — compute_release_envelope runs 15-20 s of pure-Python
+  code (explorer / UT / MC) in the planner thread, which holds the
+  GIL; the Qt tick thread's lock acquisition has to first wait on the
+  GIL. Proper remedy: move planner to multiprocessing.Process (separate
+  GIL). QThread does not help. Remedy NOT implemented — requires
+  supervisor review per Rule 10. Minor hardening (defensive copy of
+  self._state.settings inside lock) also deferred to avoid touching
+  non-broken code.
+  Rule reminder going forward: BackgroundPlannerLoop and GuidanceLoop
+  MUST never hold SystemState.lock during computation. Pattern:
+  lock(read) → unlock → compute → lock(write). If a future change
+  reintroduces a long critical section, A will spike again.
 
 - target_position now set in _on_mission_config_committed() from cfg
   target_x/target_y/target_elevation. envelope_dirty=True triggers

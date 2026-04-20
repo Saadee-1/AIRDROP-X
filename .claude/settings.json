@@ -25,7 +25,10 @@
       "Bash(python -m py_compile e:/AIRDROP-X/product/runtime/runtime_loops.py)",
       "Bash(python -m py_compile e:/AIRDROP-X/product/sensors/camera_feed.py)",
       "Bash(python -m py_compile product/runtime/system_state.py)",
-      "Bash(python -m py_compile product/sensors/camera_feed.py)"
+      "Bash(python -m py_compile product/sensors/camera_feed.py)",
+      "Bash(python -m py_compile product/uncertainty/unscented_propagation.py)",
+      "Bash(python -c \"from product.uncertainty.unscented_propagation import propagate_unscented; print\\('import OK'\\)\")",
+      "Bash(python -m py_compile qt_app/main_window.py product/ui/widgets/tactical_map_widget.py)"
     ]
   }
 }

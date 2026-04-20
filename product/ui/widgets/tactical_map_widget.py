@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsTextItem,
     QGraphicsView,
+    QLabel,
     QWidget,
 )
 
@@ -54,17 +55,11 @@ class CameraFeedLayer(QWidget):
             return
 
     def paintEvent(self, event) -> None:
+        if self._pixmap is None or self._pixmap.isNull():
+            return
         if not self._needs_redraw:
             return
         painter = QPainter(self)
-        if self._pixmap is None or self._pixmap.isNull():
-            painter.fillRect(self.rect(), QColor(0, 0, 0, 40))
-            font = QFont("Consolas", 10)
-            painter.setFont(font)
-            painter.setPen(QColor("#444444"))
-            painter.drawText(self.rect(), Qt.AlignCenter, "NO CAMERA FEED")
-            self._needs_redraw = False
-            return
         painter.drawPixmap(0, 0, self._pixmap)
         self._needs_redraw = False
 
@@ -839,6 +834,17 @@ class TacticalMapWidget(QGraphicsView):
         self._reposition_camera_feed()
         self._camera_feed_layer.show()
 
+        self._no_feed_label = QLabel("NO CAMERA FEED", self.viewport())
+        self._no_feed_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._no_feed_label.setAttribute(Qt.WA_TranslucentBackground, True)
+        self._no_feed_label.setStyleSheet(
+            "color: #555555; background: transparent;"
+        )
+        self._no_feed_label.setFont(QFont("Consolas", 9))
+        self._no_feed_label.adjustSize()
+        self._reposition_no_feed_label()
+        self._no_feed_label.show()
+
         self._wind_indicator = WindIndicatorLayer(self.viewport())
         self._reposition_wind_indicator()
 
@@ -895,9 +901,19 @@ class TacticalMapWidget(QGraphicsView):
 
     def resizeEvent(self, event) -> None:
         self._reposition_camera_feed()
+        self._reposition_no_feed_label()
         self._reposition_wind_indicator()
         super().resizeEvent(event)
         self._update_grid()
+
+    def _reposition_no_feed_label(self):
+        if hasattr(self, '_no_feed_label'):
+            viewport = self.viewport()
+            lw = self._no_feed_label.width()
+            lh = self._no_feed_label.height()
+            x = (viewport.width() - lw) // 2
+            y = viewport.height() - lh - 30
+            self._no_feed_label.move(x, y)
 
     def _reposition_camera_feed(self):
         if hasattr(self, '_camera_feed_layer'):
@@ -962,11 +978,13 @@ class TacticalMapWidget(QGraphicsView):
         self._corridor_collapsed = self.corridor_layer.is_collapsed()
 
     def update_camera_feed(self, image) -> None:
-        # Raw overlay, no georeferencing — None triggers NO CAMERA overlay.
+        # Raw overlay, no georeferencing — None shows NO CAMERA label.
         if image is None:
             self._camera_feed_layer._pixmap = None
             self._camera_feed_layer._needs_redraw = True
             self._camera_feed_layer.update()
+            if hasattr(self, '_no_feed_label'):
+                self._no_feed_label.show()
             return
         vp = self.viewport()
         scaled = image.scaled(
@@ -976,6 +994,8 @@ class TacticalMapWidget(QGraphicsView):
             Qt.FastTransformation,
         )
         self._camera_feed_layer.update_frame(scaled)
+        if hasattr(self, '_no_feed_label'):
+            self._no_feed_label.hide()
 
     def update_guidance_arrow(self) -> None:
         # Persistent items: update only geometry.

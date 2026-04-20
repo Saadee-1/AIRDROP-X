@@ -59,56 +59,42 @@ def propagate_unscented(
     base_wind = np.asarray(context.wind_ref, dtype=float).reshape(-1)[:3]
 
     num_sigma = sigma_points.shape[0]
-    impacts = np.zeros((num_sigma, 2), dtype=float)
 
-    for i in range(num_sigma):
-        u = sigma_points[i]
-        wind_bias_x = float(u[0])
-        wind_bias_y = float(u[1])
-        release_x_err = float(u[2])
-        release_y_err = float(u[3])
-        velocity_bias = float(u[4])
+    # Batch all sigma points into a single _propagate_payload_batch call.
+    # Previously: num_sigma sequential N=1 calls (GIL-bound Python loop).
+    wind_bias = sigma_points[:, 0:2]
+    release_err = sigma_points[:, 2:4]
+    velocity_bias = sigma_points[:, 4]
 
-        # Smooth saturation of wind biases to preserve sigma-point structure.
-        max_wind_bias = 6.0  # m/s
-        wind_bias_x = float(max_wind_bias * np.tanh(wind_bias_x / max_wind_bias))
-        wind_bias_y = float(max_wind_bias * np.tanh(wind_bias_y / max_wind_bias))
+    max_wind_bias = 6.0  # m/s
+    wind_bias = max_wind_bias * np.tanh(wind_bias / max_wind_bias)
 
-        # Wind bias: adjust x/y components of wind_ref.
-        wind_vec = base_wind.copy()
-        wind_vec[0] += wind_bias_x
-        wind_vec[1] += wind_bias_y
-        # Context expects per-sample wind_ref; use N=1.
-        wind_ref_ut = wind_vec.reshape(1, 3)
-        ctx_ut = context.with_wind(wind_ref_ut)
+    max_release_error = 50.0  # meters
+    release_err = np.clip(release_err, -max_release_error, max_release_error)
 
-        # Clamp release errors to a reasonable physical envelope.
-        max_release_error = 50.0  # meters
-        release_x_err = float(np.clip(release_x_err, -max_release_error, max_release_error))
-        release_y_err = float(np.clip(release_y_err, -max_release_error, max_release_error))
+    wind_refs = np.broadcast_to(base_wind, (num_sigma, 3)).copy()
+    wind_refs[:, 0] += wind_bias[:, 0]
+    wind_refs[:, 1] += wind_bias[:, 1]
 
-        # Release position errors in world frame (x, y).
-        pos_ut = pos0.copy()
-        pos_ut[0] += release_x_err
-        pos_ut[1] += release_y_err
+    pos_batch = np.broadcast_to(pos0, (num_sigma, 3)).copy()
+    pos_batch[:, 0] += release_err[:, 0]
+    pos_batch[:, 1] += release_err[:, 1]
 
-        # Velocity magnitude bias along current direction, with floor to
-        # prevent unrealistic inversion or near-zero speeds.
-        scale = 1.0 + velocity_bias
-        scale = max(scale, 0.1)
-        vel_ut = vel0.copy() * scale
+    scale = np.maximum(1.0 + velocity_bias, 0.1)
+    vel_batch = vel0[None, :] * scale[:, None]
 
-        # 3) Propagate payload trajectory with existing RK2 integrator.
-        impact_xy, _ = _propagate_payload_batch(
-            ctx_ut,
-            pos_ut,
-            vel_ut,
-            return_trajectories=False,
-            return_impact_speeds=False,
-        )
+    ctx_ut = context.with_wind(wind_refs)
 
-        # _propagate_payload_batch returns impact_xy of shape (N, 2) with N=1.
-        impacts[i] = np.asarray(impact_xy, dtype=float).reshape(1, 2)[0]
+    impact_xy, _ = _propagate_payload_batch(
+        ctx_ut,
+        pos0,
+        vel0,
+        return_trajectories=False,
+        return_impact_speeds=False,
+        pos0_batch=pos_batch,
+        vel0_batch=vel_batch,
+    )
+    impacts = np.asarray(impact_xy, dtype=float).reshape(num_sigma, 2)
 
     # 4) Combine results into mean and covariance.
     # Mean impact point.

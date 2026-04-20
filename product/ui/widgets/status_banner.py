@@ -173,13 +173,6 @@ _STATUS_COLOR = {
     DropStatus.DROP_NOW: "#00FF66",
 }
 
-_CENTER_TINT = {
-    DropStatus.NO_DROP: "#1a0000",
-    DropStatus.APPROACH_CORRIDOR: "#1a0e00",
-    DropStatus.IN_DROP_ZONE: "#001a08",
-    DropStatus.DROP_NOW: "#002200",
-}
-
 _STATUS_TEXT = {
     DropStatus.NO_DROP: "NO DROP",
     DropStatus.APPROACH_CORRIDOR: "APPROACH CORRIDOR",
@@ -280,24 +273,24 @@ class MissionStatusStrip(QWidget):
 
         status_color_str = _STATUS_COLOR.get(self._status, "#CC2200")
         status_qcolor = QColor(status_color_str)
-        center_tint = QColor(_CENTER_TINT.get(self._status, "#1a0000"))
         bg = QColor("#0a0a0a")
 
-        # Panel backgrounds.
-        painter.fillRect(left_rect, bg)
-        painter.fillRect(center_rect, center_tint)
-        painter.fillRect(right_rect, bg)
+        # Uniform background — no center tint. Corner brackets carry state.
+        painter.fillRect(self.rect(), bg)
 
         pad = 12
 
-        # LEFT: HDG / DIST, left-aligned, stacked.
+        # LEFT: HDG / DIST, horizontally centered within left panel.
         painter.setPen(QColor("white"))
         painter.setFont(self._font_value)
-        hdg_rect = QRect(left_rect.x() + pad, 10, left_rect.width() - pad, 24)
-        painter.drawText(hdg_rect, Qt.AlignLeft | Qt.AlignVCenter, self._fmt_hdg(self._hdg_deg))
-        painter.setFont(self._font_sub)
-        dist_rect = QRect(left_rect.x() + pad, 38, left_rect.width() - pad, 22)
-        painter.drawText(dist_rect, Qt.AlignLeft | Qt.AlignVCenter, self._fmt_dist(self._dist_m))
+        hdg_rect = QRect(left_rect.x(), 10, left_rect.width(), 24)
+        painter.drawText(
+            hdg_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_hdg(self._hdg_deg),
+        )
+        dist_rect = QRect(left_rect.x(), 38, left_rect.width(), 22)
+        painter.drawText(
+            dist_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_dist(self._dist_m),
+        )
 
         # CENTER: primary status + advisory, center-aligned.
         primary_text = _STATUS_TEXT.get(self._status, "UNKNOWN")
@@ -315,20 +308,40 @@ class MissionStatusStrip(QWidget):
         advisory_rect = QRect(center_rect.x(), 40, center_rect.width(), 26)
         painter.drawText(advisory_rect, Qt.AlignCenter, advisory)
 
-        # RIGHT: P(HIT) / CEP, right-aligned.
+        # RIGHT: P(HIT) / CEP, horizontally centered within right panel.
         painter.setPen(QColor("white"))
         painter.setFont(self._font_value)
-        phit_rect = QRect(right_rect.x(), 10, right_rect.width() - pad, 24)
-        painter.drawText(phit_rect, Qt.AlignRight | Qt.AlignVCenter, self._fmt_phit(self._p_hit))
-        painter.setFont(self._font_sub)
-        cep_rect = QRect(right_rect.x(), 38, right_rect.width() - pad, 22)
-        painter.drawText(cep_rect, Qt.AlignRight | Qt.AlignVCenter, self._fmt_cep(self._cep_m))
+        phit_rect = QRect(right_rect.x(), 10, right_rect.width(), 24)
+        painter.drawText(
+            phit_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_phit(self._p_hit),
+        )
+        cep_rect = QRect(right_rect.x(), 38, right_rect.width(), 22)
+        painter.drawText(
+            cep_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_cep(self._cep_m),
+        )
 
-        # Bottom border accent — 2 px, status-colored, static.
+        # Corner brackets on center panel — state-colored L-marks.
         pen = QPen(status_qcolor)
         pen.setWidth(2)
+        pen.setCapStyle(Qt.FlatCap)
         painter.setPen(pen)
-        painter.drawLine(0, h - 1, w, h - 1)
+        bl = 14   # bracket arm length
+        cx0 = center_rect.x() + pad
+        cy0 = pad // 2
+        cx1 = center_rect.x() + center_rect.width() - pad
+        cy1 = h - pad // 2
+        # Top-left
+        painter.drawLine(cx0, cy0, cx0 + bl, cy0)
+        painter.drawLine(cx0, cy0, cx0, cy0 + bl)
+        # Top-right
+        painter.drawLine(cx1, cy0, cx1 - bl, cy0)
+        painter.drawLine(cx1, cy0, cx1, cy0 + bl)
+        # Bottom-left
+        painter.drawLine(cx0, cy1, cx0 + bl, cy1)
+        painter.drawLine(cx0, cy1, cx0, cy1 - bl)
+        # Bottom-right
+        painter.drawLine(cx1, cy1, cx1 - bl, cy1)
+        painter.drawLine(cx1, cy1, cx1, cy1 - bl)
 
     def mousePressEvent(self, event):
         if (
