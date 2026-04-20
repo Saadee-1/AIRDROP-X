@@ -880,7 +880,10 @@ class MainWindow(QMainWindow):
         self.mission_fig_op.clear()
         self.mission_fig_op.add_subplot(1, 1, 1).set_axis_off()
         if hasattr(self, "mission_canvas_op") and self.mission_canvas_op is not None:
-            self.mission_canvas_op.draw_idle()
+            _now = time.monotonic()
+            if _now - getattr(self, "_last_mission_op_draw", 0.0) >= 0.5:
+                self._last_mission_op_draw = _now
+                self.mission_canvas_op.draw_idle()
 
     def _render_mission_tab_operator(
         self, snapshot, decision, p_hit, cep50, threshold, advisory, impact_points,
@@ -1082,7 +1085,10 @@ class MainWindow(QMainWindow):
             n_samples=n_samples,
         )
         self.mission_fig_op.subplots_adjust(left=0.09, right=0.99, top=0.97, bottom=0.08)
-        self.mission_canvas_op.draw_idle()
+        _now = time.monotonic()
+        if _now - getattr(self, "_last_mission_op_draw", 0.0) >= 0.5:
+            self._last_mission_op_draw = _now
+            self.mission_canvas_op.draw_idle()
 
         # Advisory column (doctrine reason when available, else advisory)
         decision_reason = snapshot.get("decision_reason")
@@ -1251,6 +1257,8 @@ class MainWindow(QMainWindow):
             return int(self.config_state.data.get("n_samples", 1000))
 
     def _render_analysis_tab(self) -> None:
+        if self.main_tabs.currentIndex() != self.main_tabs.indexOf(self.analysis_tab):
+            return
         snapshot = self._latest_snapshot or {}
         impact_points = snapshot.get("impact_points", [])
         p_hit = float(snapshot.get("P_hit", 0.0) or 0.0)
@@ -1302,13 +1310,18 @@ class MainWindow(QMainWindow):
             self.analysis_fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
         except Exception:
             pass
-        self.analysis_canvas.draw_idle()
+        _now = time.monotonic()
+        if _now - getattr(self, "_last_analysis_draw", 0.0) >= 0.5:
+            self._last_analysis_draw = _now
+            self.analysis_canvas.draw_idle()
 
     def _render_payload_tab(self) -> None:
         """Mission Config tab: form-based; no canvas render."""
         pass
 
     def _render_sensor_tab(self) -> None:
+        if self.main_tabs.currentIndex() != self.main_tabs.indexOf(self.telemetry_tab):
+            return
         _now = time.monotonic()
         if _now - getattr(self, "_last_telemetry_draw", 0.0) < 0.5:
             return
@@ -1348,6 +1361,8 @@ class MainWindow(QMainWindow):
         self.telemetry_canvas.draw_idle()
 
     def _render_system_tab(self) -> None:
+        if self.main_tabs.currentIndex() != self.main_tabs.indexOf(self.system_tab):
+            return
         _now = time.monotonic()
         if _now - getattr(self, "_last_system_draw", 0.0) < 0.5:
             return

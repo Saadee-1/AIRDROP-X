@@ -3,6 +3,8 @@ Unified single-window UI. Tab container: one figure, tab bar, content area.
 Handles tab switching only. No business logic.
 """
 
+import time
+
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 
@@ -143,8 +145,12 @@ def launch_unified_ui(
             )
         else:
             tabs.TABS[index][1](content_ax)
-        fig.canvas.draw_idle()
+        _now = time.monotonic()
+        if _now - show_tab._last_draw >= 0.5:
+            show_tab._last_draw = _now
+            fig.canvas.draw_idle()
 
+    show_tab._last_draw = 0.0
     buttons = _make_tab_buttons(fig, len(tabs.TABS), lambda idx: show_tab(idx))
     tab_button_axes = [b.ax for b in buttons]
     show_tab(0)

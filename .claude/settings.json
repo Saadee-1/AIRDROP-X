@@ -30,7 +30,8 @@
       "Bash(python -c \"from product.uncertainty.unscented_propagation import propagate_unscented; print\\('import OK'\\)\")",
       "Bash(python -m py_compile qt_app/main_window.py product/ui/widgets/tactical_map_widget.py)",
       "Bash(python -m py_compile qt_app/main_window.py product/ui/qt_bridge.py product/ui/tabs/payload_library.py)",
-      "Bash(python -m py_compile qt_app/main_window.py qt_app/plots.py)"
+      "Bash(python -m py_compile qt_app/main_window.py qt_app/plots.py)",
+      "Bash(python -m py_compile qt_app/main_window.py product/ui/ui_layout.py)"
     ]
   }
 }

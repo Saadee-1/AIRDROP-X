@@ -737,6 +737,8 @@ class TacticalMapWidget(QGraphicsView):
         super().__init__(parent)
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
+        self.scene.setItemIndexMethod(QGraphicsScene.ItemIndexMethod.NoIndex)
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.BoundingRectViewportUpdate)
         self.setRenderHint(QPainter.Antialiasing, True)
         self.setBackgroundBrush(QBrush(Qt.black))
         self.setFocusPolicy(Qt.StrongFocus)
