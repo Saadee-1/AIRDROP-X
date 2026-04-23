@@ -61,7 +61,14 @@ PAYLOAD_LIBRARY = [
         "category": "Humanitarian / Relief",
         "subcategory": "Consumables",
         "notes": "Woven polypropylene sack, shock tolerant.",
-        "description": "Standard grain sack for air drop."
+        "description": "Standard grain sack for air drop.",
+        "shape": "box",
+        "mass_kg": 25.0,
+        "dims": [0.50, 0.40],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.2000,
+        "CdA": 0.2300,
     },
     {
         "id": "rel_med_kit_s",
@@ -69,7 +76,14 @@ PAYLOAD_LIBRARY = [
         "category": "Humanitarian / Relief",
         "subcategory": "Medical",
         "notes": "Standard first-aid kit.",
-        "description": "Emergency medical supplies."
+        "description": "Emergency medical supplies.",
+        "shape": "box",
+        "mass_kg": 3.0,
+        "dims": [0.30, 0.20],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.0600,
+        "CdA": 0.0690,
     },
     {
         "id": "rel_water_jerry",
@@ -77,7 +91,14 @@ PAYLOAD_LIBRARY = [
         "category": "Humanitarian / Relief",
         "subcategory": "Liquids",
         "notes": "Reinforced HDPE canister.",
-        "description": "Water container for air drop."
+        "description": "Water container for air drop.",
+        "shape": "box",
+        "mass_kg": 10.0,
+        "dims": [0.35, 0.25],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.0875,
+        "CdA": 0.1006,
     },
     {
         "id": "rel_blanket_roll",
@@ -85,7 +106,14 @@ PAYLOAD_LIBRARY = [
         "category": "Humanitarian / Relief",
         "subcategory": "Shelter",
         "notes": "Compressed wool blankets.",
-        "description": "Thermal protection for refugees."
+        "description": "Thermal protection for refugees.",
+        "shape": "cylinder",
+        "mass_kg": 4.0,
+        "dims": [0.40],
+        "Cd": 0.90,
+        "cd_uncertainty": 0.15,
+        "area_m2": 0.1257,
+        "CdA": 0.1131,
     },
 
     # --- Training / Inert ---
@@ -95,7 +123,14 @@ PAYLOAD_LIBRARY = [
         "category": "Training / Inert",
         "subcategory": "Calibration",
         "notes": "Polished steel reference.",
-        "description": "Precise aerodynamic reference shape."
+        "description": "Precise aerodynamic reference shape.",
+        "shape": "sphere",
+        "mass_kg": 1.0,
+        "dims": [0.20],
+        "Cd": 0.47,
+        "cd_uncertainty": 0.05,
+        "area_m2": 0.0314,
+        "CdA": 0.0148,
     },
     {
         "id": "trg_dummy_box",
@@ -103,7 +138,14 @@ PAYLOAD_LIBRARY = [
         "category": "Training / Inert",
         "subcategory": "Procedure",
         "notes": "Sand-filled ballast box.",
-        "description": "Standard shape for procedure training."
+        "description": "Standard shape for procedure training.",
+        "shape": "box",
+        "mass_kg": 5.0,
+        "dims": [0.40, 0.30],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.1200,
+        "CdA": 0.1380,
     },
     {
         "id": "trg_sim_cyl",
@@ -111,7 +153,14 @@ PAYLOAD_LIBRARY = [
         "category": "Training / Inert",
         "subcategory": "Procedure",
         "notes": "Concrete filled PVC pipe.",
-        "description": "Low-cost simulation object."
+        "description": "Low-cost simulation object.",
+        "shape": "cylinder",
+        "mass_kg": 5.0,
+        "dims": [0.15],
+        "Cd": 0.90,
+        "cd_uncertainty": 0.15,
+        "area_m2": 0.0177,
+        "CdA": 0.0159,
     },
 
     # --- Experimental / Research ---
@@ -121,7 +170,14 @@ PAYLOAD_LIBRARY = [
         "category": "Experimental / Research",
         "subcategory": "Sensors",
         "notes": "Deployable sensor array.",
-        "description": "Atmospheric data collection unit."
+        "description": "Atmospheric data collection unit.",
+        "shape": "capsule",
+        "mass_kg": 2.5,
+        "dims": [0.13],
+        "Cd": 0.50,
+        "cd_uncertainty": 0.10,
+        "area_m2": 0.0133,
+        "CdA": 0.0066,
     },
     {
         "id": "exp_reentry_test",
@@ -129,7 +185,14 @@ PAYLOAD_LIBRARY = [
         "category": "Experimental / Research",
         "subcategory": "Aerodynamics",
         "notes": "70 deg sphere-cone shape.",
-        "description": "High-drag re-entry simulator."
+        "description": "High-drag re-entry simulator.",
+        "shape": "blunt_cone",
+        "mass_kg": 10.0,
+        "dims": [0.25],
+        "Cd": 0.70,
+        "cd_uncertainty": 0.15,
+        "area_m2": 0.0491,
+        "CdA": 0.0344,
     },
     {
         "id": "exp_bio_cont",
@@ -137,7 +200,14 @@ PAYLOAD_LIBRARY = [
         "category": "Experimental / Research",
         "subcategory": "Biological",
         "notes": "Impact hardened containment.",
-        "description": "Secure biological sample container."
+        "description": "Secure biological sample container.",
+        "shape": "capsule",
+        "mass_kg": 2.0,
+        "dims": [0.16],
+        "Cd": 0.50,
+        "cd_uncertainty": 0.10,
+        "area_m2": 0.0201,
+        "CdA": 0.0101,
     },
     {
         "id": "exp_cubesat_sim",
@@ -145,7 +215,14 @@ PAYLOAD_LIBRARY = [
         "category": "Experimental / Research",
         "subcategory": "Space Systems",
         "notes": "Standard 1U form factor dummy.",
-        "description": "CubeSat form factor test unit."
+        "description": "CubeSat form factor test unit.",
+        "shape": "box",
+        "mass_kg": 1.3,
+        "dims": [0.10, 0.10],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.0100,
+        "CdA": 0.0115,
     },
 
     # --- Commercial / Logistics ---
@@ -155,7 +232,14 @@ PAYLOAD_LIBRARY = [
         "category": "Commercial / Logistics",
         "subcategory": "Delivery",
         "notes": "Standard cardboard shipping box.",
-        "description": "Commercial delivery package."
+        "description": "Commercial delivery package.",
+        "shape": "box",
+        "mass_kg": 2.0,
+        "dims": [0.40, 0.30],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.1200,
+        "CdA": 0.1380,
     },
     {
         "id": "com_parts_bin",
@@ -163,7 +247,14 @@ PAYLOAD_LIBRARY = [
         "category": "Commercial / Logistics",
         "subcategory": "Industrial",
         "notes": "Plastic tote with lid.",
-        "description": "Industrial parts container."
+        "description": "Industrial parts container.",
+        "shape": "box",
+        "mass_kg": 8.0,
+        "dims": [0.50, 0.35],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.1750,
+        "CdA": 0.2013,
     },
     {
         "id": "com_doc_tube",
@@ -171,7 +262,14 @@ PAYLOAD_LIBRARY = [
         "category": "Commercial / Logistics",
         "subcategory": "Documents",
         "notes": "Waterproof document container.",
-        "description": "Secure document transport."
+        "description": "Secure document transport.",
+        "shape": "cylinder",
+        "mass_kg": 0.5,
+        "dims": [0.08],
+        "Cd": 0.90,
+        "cd_uncertainty": 0.15,
+        "area_m2": 0.0050,
+        "CdA": 0.0045,
     },
     {
         "id": "com_cooler",
@@ -179,7 +277,14 @@ PAYLOAD_LIBRARY = [
         "category": "Commercial / Logistics",
         "subcategory": "Perishables",
         "notes": "Expanded polystyrene cooler.",
-        "description": "Temperature controlled transport."
+        "description": "Temperature controlled transport.",
+        "shape": "box",
+        "mass_kg": 3.0,
+        "dims": [0.60, 0.40],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.2400,
+        "CdA": 0.2760,
     },
 
     # --- Military / Tactical (Generic) ---
@@ -189,7 +294,14 @@ PAYLOAD_LIBRARY = [
         "category": "Military / Tactical",
         "subcategory": "Signaling",
         "notes": "Generic signaling smoke canister.",
-        "description": "Visual marker for LZ."
+        "description": "Visual marker for LZ.",
+        "shape": "cylinder",
+        "mass_kg": 0.8,
+        "dims": [0.07],
+        "Cd": 0.90,
+        "cd_uncertainty": 0.15,
+        "area_m2": 0.0038,
+        "CdA": 0.0035,
     },
     {
         "id": "mil_sensor_node",
@@ -197,7 +309,14 @@ PAYLOAD_LIBRARY = [
         "category": "Military / Tactical",
         "subcategory": "ISR",
         "notes": "Ruggedized spherical sensor.",
-        "description": "Ground sensor deployment."
+        "description": "Ground sensor deployment.",
+        "shape": "sphere",
+        "mass_kg": 1.5,
+        "dims": [0.18],
+        "Cd": 0.47,
+        "cd_uncertainty": 0.05,
+        "area_m2": 0.0254,
+        "CdA": 0.0120,
     },
     {
         "id": "mil_ammo_box",
@@ -205,7 +324,14 @@ PAYLOAD_LIBRARY = [
         "category": "Military / Tactical",
         "subcategory": "Resupply",
         "notes": "Steel container with ballast.",
-        "description": "Standard ammunition container."
+        "description": "Standard ammunition container.",
+        "shape": "box",
+        "mass_kg": 8.0,
+        "dims": [0.50, 0.30],
+        "Cd": 1.15,
+        "cd_uncertainty": 0.20,
+        "area_m2": 0.1500,
+        "CdA": 0.1725,
     },
     {
         "id": "mil_comms_droplink",
@@ -213,8 +339,15 @@ PAYLOAD_LIBRARY = [
         "category": "Military / Tactical",
         "subcategory": "Comms",
         "notes": "Self-righting communications buoy.",
-        "description": "Tactical communications relay."
-    }
+        "description": "Tactical communications relay.",
+        "shape": "capsule",
+        "mass_kg": 3.5,
+        "dims": [0.20],
+        "Cd": 0.50,
+        "cd_uncertainty": 0.10,
+        "area_m2": 0.0314,
+        "CdA": 0.0157,
+    },
 ]
 
 
@@ -251,16 +384,51 @@ def _payloads_for_category(cat):
     ]
 
 
-# Default physics (mass kg, Cd, reference_area m²) for Apply-to-mission. Missing ids use config.
+# Default physics (mass_kg, Cd, area_m2) for Apply-to-mission. All 19 catalog ids covered.
 def _default_physics_table():
-    from configs import mission_configs as cfg
     return {
-        "trg_cal_sphere": (1.0, 0.47, 0.0314),   # ~0.1m radius sphere
-        "rel_sac_grain": (25.0, 0.55, 0.15),
-        "rel_med_kit_s": (3.0, 0.55, 0.04),
-        "exp_reentry_test": (10.0, 1.2, 0.05),
-        "com_express_box": (2.0, 0.65, 0.08),
+        "rel_sac_grain":      (25.0,  1.15, 0.2000),
+        "rel_med_kit_s":      ( 3.0,  1.15, 0.0600),
+        "rel_water_jerry":    (10.0,  1.15, 0.0875),
+        "rel_blanket_roll":   ( 4.0,  0.90, 0.1257),
+        "trg_cal_sphere":     ( 1.0,  0.47, 0.0314),
+        "trg_dummy_box":      ( 5.0,  1.15, 0.1200),
+        "trg_sim_cyl":        ( 5.0,  0.90, 0.0177),
+        "exp_atm_probe":      ( 2.5,  0.50, 0.0133),
+        "exp_reentry_test":   (10.0,  0.70, 0.0491),
+        "exp_bio_cont":       ( 2.0,  0.50, 0.0201),
+        "exp_cubesat_sim":    ( 1.3,  1.15, 0.0100),
+        "com_express_box":    ( 2.0,  1.15, 0.1200),
+        "com_parts_bin":      ( 8.0,  1.15, 0.1750),
+        "com_doc_tube":       ( 0.5,  0.90, 0.0050),
+        "com_cooler":         ( 3.0,  1.15, 0.2400),
+        "mil_smoke_can":      ( 0.8,  0.90, 0.0038),
+        "mil_sensor_node":    ( 1.5,  0.47, 0.0254),
+        "mil_ammo_box":       ( 8.0,  1.15, 0.1500),
+        "mil_comms_droplink": ( 3.5,  0.50, 0.0314),
     }
+
+
+def compute_CdA(shape: str, dims: list) -> tuple:
+    """
+    Returns (area_m2, CdA) from shape and dims.
+    dims: [L, W] for box, [diameter] for all other shapes.
+    """
+    import math
+    _CD = {
+        "sphere":     0.47,
+        "cylinder":   0.90,
+        "box":        1.15,
+        "capsule":    0.50,
+        "blunt_cone": 0.70,
+    }
+    if shape == "box":
+        area = float(dims[0]) * float(dims[1])
+    else:
+        r = float(dims[0]) / 2.0
+        area = math.pi * r * r
+    Cd = _CD.get(shape, 1.0)
+    return round(area, 4), round(Cd * area, 4)
 
 
 def get_default_physics_for_payload(payload_id_or_name):

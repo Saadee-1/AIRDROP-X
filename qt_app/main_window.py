@@ -175,6 +175,10 @@ class MainWindow(QMainWindow):
         )
         self.tactical_map_controller.start()
 
+        # Map click → SystemState.target_position + MissionConfigTab status label
+        # Signal path: TacticalMapWidget.target_position_set → _on_map_target_set
+        self.tactical_map_widget.target_position_set.connect(self._on_map_target_set)
+
         # Evaluation worker for continuous live mode
         self.evaluation_worker = EvaluationWorker(
             self.telemetry_state,
@@ -735,11 +739,46 @@ class MainWindow(QMainWindow):
                 [target_x, target_y, target_z], dtype=float
             )
             self.system_state.envelope_dirty = True
+
+            # Sync committed physics atomically so planner never sees
+            # mission_committed=True with stale default physics.
+            self.system_state.settings["mass"] = float(cfg.get("mass", 1.0))
+            self.system_state.settings["Cd"] = float(cfg.get("cd", 0.47))
+            self.system_state.settings["area"] = float(cfg.get("area", 0.01))
+            self.system_state.settings["wind_mean"] = cfg.get(
+                "wind_mean", [2.0, 0.0, 0.0]
+            )
+            self.system_state.settings["target_radius"] = cfg.get(
+                "target_radius", 15.0
+            )
+            self.system_state.settings["threshold_pct"] = float(
+                cfg.get("threshold_pct", 75.0)
+            )
+            _cd = float(cfg.get("cd", 0.47))
+            _area = float(cfg.get("area", 0.01))
+            _cda = float(cfg.get("CdA", _cd * _area))
+            self.system_state.settings["CdA"] = _cda
+            self.system_state.settings["beta"] = float(cfg.get("mass", 1.0)) / max(_cda, 1e-6)
+            self.system_state.settings["cd_uncertainty"] = float(
+                cfg.get("cd_uncertainty", 0.20)
+            )
+            self.system_state.settings["enable_hybrid"] = True
         self._update_summary_strip_after_commit()
+        self.mission_config_tab.update_target_status(self.system_state.target_position)
         self.main_tabs.setCurrentIndex(0)
         self._render_mission_tab()
         self._render_system_tab()
         self._update_app_state_ui()
+
+    @Slot(object)
+    def _on_map_target_set(self, position) -> None:
+        """Map left-click: write target into SystemState and update MissionConfigTab label."""
+        with self.system_state.lock:
+            self.system_state.target_position = position
+            self.system_state.envelope_dirty = True
+        self.mission_config_tab.update_target_status(position)
+        self.tactical_map_widget.fit_view_to_uav_and_target()
+        QTimer.singleShot(3000, self.tactical_map_widget.resume_follow_uav)
 
     @Slot(bool)
     def _on_mission_config_dirty_changed(self, dirty: bool) -> None:
@@ -1598,8 +1637,16 @@ class MainWindow(QMainWindow):
         pass
 
     def _on_tab_changed(self, index: int) -> None:
-        """Handle tab change."""
-        pass
+        """Handle tab change — force immediate render on the newly visible tab."""
+        if index == self.main_tabs.indexOf(self.analysis_tab):
+            self._last_analysis_draw = 0.0
+            self._render_analysis_tab()
+        elif index == self.main_tabs.indexOf(self.system_tab):
+            self._last_system_draw = 0.0
+            self._render_system_tab()
+        elif index == self.main_tabs.indexOf(self.telemetry_tab):
+            self._last_telemetry_draw = 0.0
+            self._render_sensor_tab()
 
     def _switch_to_tab(self, index: int) -> None:
         self.main_tabs.setCurrentIndex(index)
@@ -1908,8 +1955,33 @@ class MainWindow(QMainWindow):
         cfg["mass"] = float(cfg.get("mass", 1.0))
         cfg["cd"] = float(cfg.get("cd", 0.47))
         cfg["area"] = float(cfg.get("area", 0.01))
+        cfg["shape"] = str(cfg.get("shape", "box")).strip().lower()
+        cfg["dims"] = cfg.get("dims", [0.2, 0.2])
+        cfg["CdA"] = float(cfg.get("CdA", cfg["cd"] * cfg["area"]))
+        cfg["beta"] = float(cfg["mass"]) / max(cfg["CdA"], 1e-6)
+        cfg["target_radius"] = float(cfg.get("target_radius", 15.0))
+        cfg["cd_uncertainty"] = float(cfg.get("cd_uncertainty", 0.20))
         with self.config_state.lock:
             self.config_state.data = dict(cfg)
+        # Bridge physics to runtime SystemState so BackgroundPlannerLoop reads
+        # committed values ("Cd" key) rather than falling back to defaults.
+        if hasattr(self, "system_state"):
+            with self.system_state.lock:
+                self.system_state.settings["mass"] = cfg["mass"]
+                self.system_state.settings["Cd"] = cfg["cd"]
+                self.system_state.settings["area"] = cfg["area"]
+                self.system_state.settings["wind_mean"] = cfg.get(
+                    "wind_mean", [2.0, 0.0, 0.0]
+                )
+                self.system_state.settings["target_radius"] = cfg.get(
+                    "target_radius", 15.0
+                )
+                self.system_state.settings["CdA"] = cfg["CdA"]
+                self.system_state.settings["beta"] = cfg["beta"]
+                self.system_state.settings["cd_uncertainty"] = cfg.get(
+                    "cd_uncertainty", 0.20
+                )
+                self.system_state.settings["enable_hybrid"] = cfg.get("enable_hybrid", True)
 
     def _start_evaluation_worker(self) -> None:
         """Start continuous evaluation worker (LIVE mode)."""

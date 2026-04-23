@@ -201,7 +201,7 @@ class MissionStatusStrip(QWidget):
     """Persistent mission status strip — paintEvent-rendered GCS header.
 
     Military GCS reference: Apache IHADSS annunciator bar + QGroundControl
-    status header. Three panels: LEFT guidance (HDG/DIST), CENTER status +
+    status header. Three panels: LEFT guidance (HDG/OFFSET), CENTER status +
     advisory, RIGHT probability (P(HIT)/CEP50). Fixed 72 px; bottom border
     accent colored by DropStatus (static, not animated).
     """
@@ -218,6 +218,7 @@ class MissionStatusStrip(QWidget):
         self._dist_m = None
         self._p_hit = None
         self._cep_m = None
+        self._p_hit_label = "P(HIT)"
 
         family = _mono_family()
         self._font_primary = QFont(family, 18, QFont.Bold)
@@ -232,11 +233,12 @@ class MissionStatusStrip(QWidget):
         self._reason = reason
         self.update()
 
-    def update_guidance(self, heading_deg, dist_m, p_hit, cep_m):
+    def update_guidance(self, heading_deg, dist_m, p_hit, cep_m, p_hit_label: str = "P(HIT)"):
         self._hdg_deg = heading_deg
         self._dist_m = dist_m
         self._p_hit = p_hit
         self._cep_m = cep_m
+        self._p_hit_label = p_hit_label
         self.update()
 
     @staticmethod
@@ -245,11 +247,11 @@ class MissionStatusStrip(QWidget):
 
     @staticmethod
     def _fmt_dist(v):
-        return f"DIST: {v:.0f} m" if v is not None else "DIST: --- m"
+        return f"OFFSET: {v:.0f} m" if v is not None else "OFFSET: --- m"
 
     @staticmethod
-    def _fmt_phit(v):
-        return f"P(HIT): {v:.2f}" if v is not None else "P(HIT): ---"
+    def _fmt_phit(v, label: str = "P(HIT)"):
+        return f"{label}: {v:.2f}" if v is not None else f"{label}: ---"
 
     @staticmethod
     def _fmt_cep(v):
@@ -313,7 +315,7 @@ class MissionStatusStrip(QWidget):
         painter.setFont(self._font_value)
         phit_rect = QRect(right_rect.x(), 10, right_rect.width(), 24)
         painter.drawText(
-            phit_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_phit(self._p_hit),
+            phit_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_phit(self._p_hit, self._p_hit_label),
         )
         cep_rect = QRect(right_rect.x(), 38, right_rect.width(), 22)
         painter.drawText(

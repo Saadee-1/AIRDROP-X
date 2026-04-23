@@ -36,6 +36,9 @@ class TacticalMapController(QObject):
         self._last_impact_version = None
         self._frame_count = 0
         self._camera_feed = CameraFeed()
+        self._smoothed_hw = 0.0
+        self._smoothed_impact_mean: Optional[np.ndarray] = None
+        self._smooth_alpha = 0.15  # 0=no update, 1=instant snap
 
     def start(self) -> None:
         self._timer.start()
@@ -98,8 +101,10 @@ class TacticalMapController(QObject):
         if vehicle_pos is not None and vehicle_heading is not None:
             self._widget.update_vehicle_position(vehicle_pos[0], vehicle_pos[1], vehicle_heading)
 
-        if target_position is not None:
+        if target_position is not None and mission_committed:
             self._widget.update_target(target_position[0], target_position[1])
+        elif not mission_committed:
+            self._widget.update_target(None)
 
         if isinstance(tactical_state, TacticalMapState):
             self._apply_tactical_state(tactical_state, vehicle_pos)
@@ -115,9 +120,14 @@ class TacticalMapController(QObject):
                 ub.get("vehicle", 0.0),
             )
         else:
-            self._apply_envelope_state(envelope_result, vehicle_pos, vehicle_velocity)
+            if mission_committed:
+                self._apply_envelope_state(envelope_result, vehicle_pos, vehicle_velocity)
+            else:
+                self._widget.update_corridor([])
+                if hasattr(self._widget, 'drift_arrow'):
+                    self._widget.drift_arrow.set_visible(False)
 
-        if wind_vector is not None:
+        if wind_vector is not None and mission_committed:
             self._widget.update_wind(wind_vector[0], wind_vector[1])
             # Trace: SystemState.wind_vector → controller → widget.update_wind_indicator
             # → WindIndicatorLayer.update_wind → paintEvent at 30 Hz.
@@ -129,11 +139,14 @@ class TacticalMapController(QObject):
                 self._widget.update_scatter(impact_points)
                 self._widget.update_heatmap(impact_points)
 
+        self._widget.set_mission_committed(mission_committed)
         self._widget.update_guidance_arrow()
 
         status = self._get(guidance_result, "status", None)
-        if status is not None:
+        if status is not None and mission_committed:
             self._widget.update_status(status)
+        elif not mission_committed:
+            self._widget.update_status("NO_DROP")
 
         drop_status, drop_reason = self._compute_banner_status(
             guidance_result, vehicle_state, target_position,
@@ -155,6 +168,20 @@ class TacticalMapController(QObject):
         else:
             p_hit_val = p_hit
         self._widget.update_p_hit(p_hit_val, ci)
+
+        # Prefer MC-confirmed P(hit) from guidance for strip display;
+        # fall back to UT estimate with tilde label when MC is pending.
+        p_hit_mc = self._get(guidance_result, "optimal_p_hit_mc", None)
+        p_hit_ut = self._get(guidance_result, "optimal_p_hit", None)
+        if p_hit_mc is not None:
+            p_hit_strip = p_hit_mc
+            p_hit_label = "P(HIT)"
+        elif p_hit_ut is not None:
+            p_hit_strip = p_hit_ut
+            p_hit_label = "P(HIT)~"
+        else:
+            p_hit_strip = None
+            p_hit_label = "P(HIT)"
 
         # Guidance + probability readouts into the strip's CENTER/RIGHT sections.
         # heading_error: radians (corridor_guidance.py) → degrees for display.
@@ -181,7 +208,9 @@ class TacticalMapController(QObject):
                         cep_m = 0.8326 * math.sqrt(max(a * a + b * b, 0.0))
                     except (TypeError, ValueError, IndexError):
                         cep_m = None
-            self._status_strip.update_guidance(heading_deg, dist_m, p_hit_val, cep_m)
+            else:
+                cep_m = getattr(self._widget, "_last_cep50_m", None)
+            self._status_strip.update_guidance(heading_deg, dist_m, p_hit_strip, cep_m, p_hit_label)
 
         # TEMP: remove after profiling
         t2 = time.perf_counter()
@@ -193,7 +222,7 @@ class TacticalMapController(QObject):
 
         release_point = self._extract_release_point(guidance_result, envelope_result, tactical_state)
         impact_mean = self._extract_impact_mean(envelope_result, tactical_state)
-        if release_point and impact_mean:
+        if release_point and impact_mean and mission_committed:
             self._widget.update_drift(release_point[0], release_point[1], impact_mean[0], impact_mean[1])
         else:
             self._widget.drift_arrow.set_visible(False)
@@ -246,9 +275,22 @@ class TacticalMapController(QObject):
         impact_cov = self._get(envelope_result, "impact_cov", None)
         feasible_offsets = self._get(envelope_result, "feasible_offsets", None)
 
-        if impact_mean is not None and impact_cov is not None:
+        if impact_mean is not None:
+            mean_2d = np.asarray(impact_mean, dtype=float).flatten()[:2]
+            if self._smoothed_impact_mean is None:
+                self._smoothed_impact_mean = mean_2d.copy()
+            else:
+                self._smoothed_impact_mean = (
+                    self._smooth_alpha * mean_2d
+                    + (1.0 - self._smooth_alpha) * self._smoothed_impact_mean
+                )
+            impact_mean_display = self._smoothed_impact_mean
+        else:
+            impact_mean_display = None
+
+        if impact_mean_display is not None and impact_cov is not None:
             try:
-                mean_arr = np.asarray(impact_mean, dtype=float).flatten()[:2]
+                mean_arr = impact_mean_display  # already (2,) float64
                 cov_arr = np.asarray(impact_cov, dtype=float).reshape(2, 2)
                 # eigh returns eigenvalues ascending; [1]=major, [0]=minor
                 eigvals, eigvecs = np.linalg.eigh(cov_arr)
@@ -279,7 +321,12 @@ class TacticalMapController(QObject):
                     if norm > 1e-6:
                         fwd = vel_xy / norm
                         lat = np.array([-fwd[1], fwd[0]], dtype=float)
-                        hw = float(np.max(np.abs(offsets)))
+                        hw_raw = float(np.max(np.abs(offsets)))
+                        self._smoothed_hw = (
+                            self._smooth_alpha * hw_raw
+                            + (1.0 - self._smooth_alpha) * self._smoothed_hw
+                        )
+                        hw = self._smoothed_hw
                         cx, cy = float(vehicle_pos[0]), float(vehicle_pos[1])
                         half_len = 50.0  # corridor half-length in world meters
                         corners = [
@@ -302,11 +349,15 @@ class TacticalMapController(QObject):
     def _extract_vehicle(vehicle_state: Any) -> Tuple[Optional[Tuple[float, float]], Optional[float], Optional[Tuple[float, float]]]:
         if vehicle_state is None:
             return None, None, None
-        pos = TacticalMapController._get(vehicle_state, "position", None)
-        heading = TacticalMapController._get(vehicle_state, "heading", None)
-        if heading is None:
-            heading = TacticalMapController._get(vehicle_state, "heading_deg", None)
+        pos      = TacticalMapController._get(vehicle_state, "position", None)
         velocity = TacticalMapController._get(vehicle_state, "velocity", None)
+        heading  = None
+        if velocity is not None:
+            vel_arr = np.asarray(velocity, dtype=float).flatten()
+            if len(vel_arr) >= 2 and np.linalg.norm(vel_arr[:2]) > 1e-6:
+                heading = math.degrees(
+                    math.atan2(float(vel_arr[1]), float(vel_arr[0]))
+                )
         if pos is None:
             return None, heading, velocity
         return (float(pos[0]), float(pos[1])), heading, velocity

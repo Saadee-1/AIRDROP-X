@@ -1,16 +1,13 @@
 """
 Mission Config tab widget: horizontal console-style panels.
-Mission Mode strip, Payload/Evaluation/Policy panels, Commit.
+Mission Mode strip, Payload/Target/Policy panels, Commit.
 Reads from config snapshot for display; commits push to config_state.
 """
 from __future__ import annotations
 
-import random
-
 from PySide6.QtCore import QEvent, QObject, Qt, Signal, Slot, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QCheckBox,
     QComboBox,
     QFormLayout,
     QFrame,
@@ -25,11 +22,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from widgets import NoWheelDoubleSpinBox, NoWheelSlider, NoWheelSpinBox
+from widgets import NoWheelDoubleSpinBox, NoWheelSlider
 
-from product.ui.tabs.payload_library import PAYLOAD_LIBRARY, CATEGORIES, get_default_physics_for_payload
+from product.ui.tabs.payload_library import PAYLOAD_LIBRARY, CATEGORIES
 from src.decision_doctrine import DOCTRINE_DESCRIPTIONS
 
+
+# Shape aerodynamic constants — mirrored from compute_CdA internals for display
+SHAPE_CD = {
+    "sphere": 0.47, "cylinder": 0.90, "box": 1.15,
+    "capsule": 0.50, "blunt_cone": 0.70,
+}
+SHAPE_UNC = {
+    "sphere": 0.05, "cylinder": 0.15, "box": 0.20,
+    "capsule": 0.10, "blunt_cone": 0.15,
+}
 
 # Typography
 PRIMARY_COLOR = "#2cff05"
@@ -45,9 +52,7 @@ DOCTRINE_DISPLAY_LABELS_HUMANITARIAN = {
 }
 
 MISSION_MODES = ("TACTICAL", "HUMANITARIAN")
-FIDELITY_VALUES = ("standard", "advanced")
 DOCTRINE_VALUES = ("STRICT", "BALANCED", "AGGRESSIVE")
-N_SAMPLES_PRESETS = (300, 500, 1000, 1500)
 
 
 def _payload_library_normalized() -> dict:
@@ -129,16 +134,14 @@ class MissionConfigTab(QWidget):
         self._dirty = False
         self._config_committed = False
         self._mission_mode = "TACTICAL"
-        self._simulation_fidelity = "advanced"
         self._doctrine = "BALANCED"
         self._threshold_pct = 75.0
-        self._n_samples = 1000
-        self._reproducible = False
-        self._random_seed = 42
         self._payload_id: str | None = None
         self._mass = 1.0
-        self._cd = 0.47
-        self._area = 0.01
+        self._shape = "box"
+        self._dims = [0.2, 0.2]
+        self._CdA = 0.0
+        self._cd_uncertainty = 0.20
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -146,7 +149,7 @@ class MissionConfigTab(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
-        # ---- Mission Mode + Simulation Fidelity strip (horizontal: two equal blocks) ----
+        # ---- Mission Mode strip ----
         self._mode_strip = QFrame(self)
         self._mode_strip.setObjectName("missionModeStrip")
         self._mode_strip.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -157,10 +160,9 @@ class MissionConfigTab(QWidget):
         strip_layout.setContentsMargins(8, 5, 8, 5)
         strip_layout.setSpacing(12)
 
-        # Left block: Mission Mode
-        left_block = QWidget(self._mode_strip)
-        left_block.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        mode_layout = QVBoxLayout(left_block)
+        mode_block = QWidget(self._mode_strip)
+        mode_block.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        mode_layout = QVBoxLayout(mode_block)
         mode_layout.setContentsMargins(0, 0, 0, 0)
         mode_layout.setSpacing(6)
         mode_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -169,7 +171,8 @@ class MissionConfigTab(QWidget):
         mode_title.setStyleSheet(f"color: {PRIMARY_COLOR}; font-weight: bold; font-size: 13px;")
         mode_layout.addWidget(mode_title)
         mode_row = QHBoxLayout()
-        self._tactical_frame = QFrame(left_block)
+
+        self._tactical_frame = QFrame(mode_block)
         self._tactical_frame.setObjectName("modeOptionFrame")
         self._tactical_frame.setStyleSheet(
             "QFrame#modeOptionFrame { border: 1px solid #2cff05; border-radius: 3px; padding: 3px; background-color: transparent; }"
@@ -187,7 +190,7 @@ class MissionConfigTab(QWidget):
         tactical_inner.addWidget(self._tactical_radio)
         self._tactical_frame.installEventFilter(_FrameClickForwarder(self._tactical_radio))
 
-        self._humanitarian_frame = QFrame(left_block)
+        self._humanitarian_frame = QFrame(mode_block)
         self._humanitarian_frame.setObjectName("modeOptionFrame")
         self._humanitarian_frame.setStyleSheet(
             "QFrame#modeOptionFrame { border: 1px solid transparent; border-radius: 3px; padding: 3px; background-color: transparent; }"
@@ -216,82 +219,14 @@ class MissionConfigTab(QWidget):
         mode_row.addStretch(1)
         mode_layout.addLayout(mode_row)
         mode_caption = QLabel(
-            "Adjusts presentation style and recommended defaults. Does not modify physics or statistical logic."
+            "Tactical: CEP-optimized, strict P(hit) on point target. Humanitarian: Zone delivery, conservative threshold."
         )
         mode_caption.setWordWrap(True)
         mode_caption.setStyleSheet(f"color: {SECONDARY_COLOR}; font-size: 11px;")
         mode_caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mode_caption.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         mode_layout.addWidget(mode_caption)
-        strip_layout.addWidget(left_block, 1)
-
-        # Right block: Simulation Fidelity
-        right_block = QWidget(self._mode_strip)
-        right_block.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        fidelity_layout = QVBoxLayout(right_block)
-        fidelity_layout.setContentsMargins(0, 0, 0, 0)
-        fidelity_layout.setSpacing(6)
-        fidelity_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        fidelity_title = QLabel("Simulation Fidelity")
-        fidelity_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        fidelity_title.setStyleSheet(f"color: {PRIMARY_COLOR}; font-weight: bold; font-size: 13px;")
-        fidelity_layout.addWidget(fidelity_title)
-        fidelity_row = QHBoxLayout()
-        self._standard_frame = QFrame(right_block)
-        self._standard_frame.setObjectName("modeOptionFrame")
-        self._standard_frame.setStyleSheet(
-            "QFrame#modeOptionFrame { border: 1px solid transparent; border-radius: 3px; padding: 3px; background-color: transparent; }"
-        )
-        self._standard_frame.setCursor(Qt.CursorShape.PointingHandCursor)
-        standard_inner = QVBoxLayout(self._standard_frame)
-        standard_inner.setContentsMargins(2, 1, 2, 1)
-        self._standard_radio = QRadioButton("Standard", self._standard_frame)
-        self._standard_radio.setStyleSheet(
-            "QRadioButton { color: #e8e8e8; border: none; padding-left: 0; min-height: 24px; }"
-            "QRadioButton::indicator { width: 0; height: 0; border: none; }"
-        )
-        self._standard_radio.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        standard_inner.addWidget(self._standard_radio)
-        self._standard_frame.installEventFilter(_FrameClickForwarder(self._standard_radio))
-
-        self._advanced_frame = QFrame(right_block)
-        self._advanced_frame.setObjectName("modeOptionFrame")
-        self._advanced_frame.setStyleSheet(
-            "QFrame#modeOptionFrame { border: 1px solid #2cff05; border-radius: 3px; padding: 3px; background-color: transparent; }"
-        )
-        self._advanced_frame.setCursor(Qt.CursorShape.PointingHandCursor)
-        advanced_inner = QVBoxLayout(self._advanced_frame)
-        advanced_inner.setContentsMargins(2, 1, 2, 1)
-        self._advanced_radio = QRadioButton("Advanced", self._advanced_frame)
-        self._advanced_radio.setChecked(True)
-        self._advanced_radio.setStyleSheet(
-            "QRadioButton { color: #e8e8e8; border: none; padding-left: 0; min-height: 24px; }"
-            "QRadioButton::indicator { width: 0; height: 0; border: none; }"
-        )
-        self._advanced_radio.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        advanced_inner.addWidget(self._advanced_radio)
-        self._advanced_frame.installEventFilter(_FrameClickForwarder(self._advanced_radio))
-
-        self._fidelity_button_group = QButtonGroup(self)
-        self._fidelity_button_group.addButton(self._standard_radio)
-        self._fidelity_button_group.addButton(self._advanced_radio)
-
-        self._standard_radio.toggled.connect(self._on_fidelity_changed)
-        self._advanced_radio.toggled.connect(self._on_fidelity_changed)
-        fidelity_row.addStretch(1)
-        fidelity_row.addWidget(self._standard_frame)
-        fidelity_row.addWidget(self._advanced_frame)
-        fidelity_row.addStretch(1)
-        fidelity_layout.addLayout(fidelity_row)
-        fidelity_caption = QLabel(
-            "Standard: lighter compute. Advanced: full sensitivity and analytical layers."
-        )
-        fidelity_caption.setWordWrap(True)
-        fidelity_caption.setStyleSheet(f"color: {SECONDARY_COLOR}; font-size: 11px;")
-        fidelity_caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        fidelity_caption.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        fidelity_layout.addWidget(fidelity_caption)
-        strip_layout.addWidget(right_block, 1)
+        strip_layout.addWidget(mode_block, 1)
 
         main_layout.addWidget(self._mode_strip)
 
@@ -344,28 +279,24 @@ class MissionConfigTab(QWidget):
         panels_layout.setSpacing(10)
 
         payload_panel = self._build_payload_panel()
-        eval_panel = self._build_eval_panel()
+        target_panel = self._build_target_panel()
         policy_panel = self._build_policy_panel()
-        adv_sim_panel = self._build_advanced_simulation_panel()
 
         panels_layout.addWidget(payload_panel, 1)
-        panels_layout.addWidget(eval_panel, 1)
+        panels_layout.addWidget(target_panel, 1)
         panels_layout.addWidget(policy_panel, 1)
-        panels_layout.addWidget(adv_sim_panel, 1)
 
         def _equalize_heights() -> None:
             panels_widget.adjustSize()
             h = max(
                 payload_panel.sizeHint().height(),
-                eval_panel.sizeHint().height(),
+                target_panel.sizeHint().height(),
                 policy_panel.sizeHint().height(),
-                adv_sim_panel.sizeHint().height(),
             )
             if h > 0:
                 payload_panel.setMinimumHeight(h)
-                eval_panel.setMinimumHeight(h)
+                target_panel.setMinimumHeight(h)
                 policy_panel.setMinimumHeight(h)
-                adv_sim_panel.setMinimumHeight(h)
 
         QTimer.singleShot(50, _equalize_heights)
 
@@ -374,7 +305,7 @@ class MissionConfigTab(QWidget):
 
         main_layout.addSpacing(12)
 
-        # ---- CommitSection ----
+        # ---- Commit Section ----
         commit_frame = QFrame(self)
         commit_frame.setObjectName("commitFrame")
         commit_frame.setStyleSheet(
@@ -396,7 +327,6 @@ class MissionConfigTab(QWidget):
 
         self._update_panel_summaries()
         self._update_mode_strip_border()
-        self._update_fidelity_strip_border()
 
     def _build_payload_panel(self) -> ConfigPanel:
         panel = ConfigPanel("Payload & Release Profile", self)
@@ -429,87 +359,93 @@ class MissionConfigTab(QWidget):
         self._mass_spin.setSingleStep(0.1)
         self._mass_spin.setDecimals(3)
         self._mass_spin.setValue(1.0)
-        self._mass_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
         self._mass_spin.setStyleSheet(INPUT_STYLE)
         lbl_m = QLabel("Mass (kg)")
         lbl_m.setStyleSheet(f"color: {PRIMARY_COLOR};")
         form.addRow(lbl_m, self._mass_spin)
 
-        self._cd_spin = NoWheelDoubleSpinBox(panel)
-        self._cd_spin.setRange(0.01, 10.0)
-        self._cd_spin.setSingleStep(0.01)
-        self._cd_spin.setDecimals(3)
-        self._cd_spin.setValue(0.47)
-        self._cd_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._cd_spin.setStyleSheet(INPUT_STYLE)
-        lbl_cd = QLabel("Drag Coef.")
-        lbl_cd.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_cd, self._cd_spin)
+        self._shape_combo = QComboBox(panel)
+        for s in ("sphere", "cylinder", "box", "capsule", "blunt_cone"):
+            self._shape_combo.addItem(s, s)
+        self._shape_combo.setCurrentText("box")
+        self._shape_combo.setStyleSheet(INPUT_STYLE)
+        lbl_sh = QLabel("Shape")
+        lbl_sh.setStyleSheet(f"color: {PRIMARY_COLOR};")
+        form.addRow(lbl_sh, self._shape_combo)
 
-        self._area_spin = NoWheelDoubleSpinBox(panel)
-        self._area_spin.setRange(0.001, 10.0)
-        self._area_spin.setSingleStep(0.001)
-        self._area_spin.setDecimals(4)
-        self._area_spin.setValue(0.01)
-        self._area_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._area_spin.setStyleSheet(INPUT_STYLE)
-        lbl_a = QLabel("Area (m²)")
-        lbl_a.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_a, self._area_spin)
+        self._dim1_label = QLabel("Length (m)")
+        self._dim1_label.setStyleSheet(f"color: {PRIMARY_COLOR};")
+        self._dim1_spin = NoWheelDoubleSpinBox(panel)
+        self._dim1_spin.setRange(0.001, 10.0)
+        self._dim1_spin.setSingleStep(0.01)
+        self._dim1_spin.setDecimals(3)
+        self._dim1_spin.setValue(0.2)
+        self._dim1_spin.setStyleSheet(INPUT_STYLE)
+        form.addRow(self._dim1_label, self._dim1_spin)
+
+        self._dim2_label = QLabel("Width (m)")
+        self._dim2_label.setStyleSheet(f"color: {PRIMARY_COLOR};")
+        self._dim2_spin = NoWheelDoubleSpinBox(panel)
+        self._dim2_spin.setRange(0.001, 10.0)
+        self._dim2_spin.setSingleStep(0.01)
+        self._dim2_spin.setDecimals(3)
+        self._dim2_spin.setValue(0.2)
+        self._dim2_spin.setStyleSheet(INPUT_STYLE)
+        form.addRow(self._dim2_label, self._dim2_spin)
+
+        self._cd_display = QLabel("Cd: 1.15  (box)")
+        self._cd_display.setStyleSheet(f"color: {PRIMARY_COLOR}; font-size: 12px;")
+        form.addRow(self._cd_display)
+
+        self._cda_display = QLabel("CdA: 0.0460 m²")
+        self._cda_display.setStyleSheet(f"color: {PRIMARY_COLOR}; font-size: 12px;")
+        form.addRow(self._cda_display)
+
+        self._beta_display = QLabel("β: 21.7 kg/m²")
+        self._beta_display.setStyleSheet(f"color: {PRIMARY_COLOR}; font-size: 12px;")
+        form.addRow(self._beta_display)
 
         panel.content_layout.addLayout(form)
         self._payload_panel = panel
+
+        # Connect signals — initial values already set above, so no spurious fire
+        self._shape_combo.currentTextChanged.connect(self._recompute_payload_physics)
+        self._dim1_spin.valueChanged.connect(self._recompute_payload_physics)
+        self._dim2_spin.valueChanged.connect(self._recompute_payload_physics)
+        self._mass_spin.valueChanged.connect(self._recompute_payload_physics)
+
+        # Populate display labels (commit_btn not yet built — guard inside method)
+        self._recompute_payload_physics()
+
         return panel
 
-    def _build_eval_panel(self) -> ConfigPanel:
-        panel = ConfigPanel("Evaluation Depth", self)
+    def _build_target_panel(self) -> ConfigPanel:
+        panel = ConfigPanel("Target Configuration", self)
         form = QFormLayout()
         form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.setContentsMargins(0, 0, 0, 0)
         form.setSpacing(6)
 
-        self._n_samples_spin = NoWheelSpinBox(panel)
-        self._n_samples_spin.setRange(30, 10000)
-        self._n_samples_spin.setSingleStep(50)
-        self._n_samples_spin.setValue(1000)
-        self._n_samples_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._n_samples_spin.setStyleSheet(INPUT_STYLE)
-        lbl_n = QLabel("Samples")
-        lbl_n.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_n, self._n_samples_spin)
+        self._target_status_label = QLabel("⬤ Target: Not Set")
+        self._target_status_label.setStyleSheet("color: #ff4444; font-size: 12px;")
+        form.addRow(self._target_status_label)
 
-        preset_row = QHBoxLayout()
-        for n in N_SAMPLES_PRESETS:
-            btn = QPushButton(str(n), panel)
-            btn.setFixedWidth(45)
-            btn.setStyleSheet(f"{BTN_STYLE}")
-            btn.clicked.connect(lambda checked, v=n: self._set_n_samples(v))
-            preset_row.addWidget(btn)
-        preset_row.addStretch(1)
-        lbl_presets = QLabel("Presets")
-        lbl_presets.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_presets, preset_row)
-
-        self._reproducible_check = QCheckBox("Reproducible", panel)
-        self._reproducible_check.setChecked(False)
-        self._reproducible_check.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        self._reproducible_check.stateChanged.connect(self._on_reproducible_changed)
-        form.addRow(self._reproducible_check)
-
-        self._seed_row_label = QLabel("Seed")
-        self._seed_row_label.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        self._seed_spin = NoWheelSpinBox(panel)
-        self._seed_spin.setRange(0, 2_147_483_647)
-        self._seed_spin.setValue(42)
-        self._seed_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._seed_spin.setStyleSheet(INPUT_STYLE)
-        form.addRow(self._seed_row_label, self._seed_spin)
-        self._seed_spin.setVisible(False)
-        self._seed_row_label.setVisible(False)
+        lbl_tr = QLabel("Target Radius (m)")
+        lbl_tr.setStyleSheet(f"color: {PRIMARY_COLOR};")
+        self._target_radius_spin = NoWheelDoubleSpinBox(panel)
+        self._target_radius_spin.setRange(1.0, 500.0)
+        self._target_radius_spin.setSingleStep(1.0)
+        self._target_radius_spin.setDecimals(1)
+        self._target_radius_spin.setValue(15.0)
+        self._target_radius_spin.setStyleSheet(INPUT_STYLE)
+        self._target_radius_spin.valueChanged.connect(
+            lambda _: (self._set_dirty(True), self._update_panel_summaries())
+        )
+        form.addRow(lbl_tr, self._target_radius_spin)
 
         panel.content_layout.addLayout(form)
-        self._eval_panel = panel
+        self._target_panel = panel
         return panel
 
     def _build_policy_panel(self) -> ConfigPanel:
@@ -539,102 +475,59 @@ class MissionConfigTab(QWidget):
         self._policy_panel = panel
         return panel
 
-    def _build_advanced_simulation_panel(self) -> ConfigPanel:
-        """Advanced Simulation section: 3D spatial overrides. Disabled in LIVE mode."""
-        panel = ConfigPanel("Advanced Simulation", self)
-        caption = QLabel("Simulation Override — Ignored in Live Mode")
-        caption.setStyleSheet(f"color: {SECONDARY_COLOR}; font-size: 10px;")
-        caption.setWordWrap(True)
-        panel.content_layout.addWidget(caption)
+    def _recompute_payload_physics(self) -> None:
+        """Called when shape, dims, or mass changes."""
+        from product.ui.tabs.payload_library import compute_CdA
+        shape = self._shape_combo.currentText()
+        d1 = self._dim1_spin.value()
+        d2 = self._dim2_spin.value() if shape == "box" else d1
+        dims = [d1, d2] if shape == "box" else [d1]
+        area, CdA = compute_CdA(shape, dims)
+        mass = self._mass_spin.value()
+        beta = mass / max(CdA, 1e-6)
 
-        form = QFormLayout()
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
-        form.setContentsMargins(0, 0, 0, 0)
-        form.setSpacing(6)
+        cd = SHAPE_CD.get(shape, 1.0)
 
-        self._uav_altitude_spin = NoWheelDoubleSpinBox(panel)
-        self._uav_altitude_spin.setRange(10.0, 100_000.0)
-        self._uav_altitude_spin.setSingleStep(10.0)
-        self._uav_altitude_spin.setDecimals(2)
-        self._uav_altitude_spin.setValue(100.0)
-        self._uav_altitude_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._uav_altitude_spin.setStyleSheet(INPUT_STYLE)
-        lbl_alt = QLabel("UAV Altitude (m)")
-        lbl_alt.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_alt, self._uav_altitude_spin)
+        self._shape = shape
+        self._dims = dims
+        self._CdA = CdA
+        self._cd_uncertainty = SHAPE_UNC.get(shape, 0.20)
 
-        self._target_x_spin = NoWheelDoubleSpinBox(panel)
-        self._target_x_spin.setRange(-1_000_000.0, 1_000_000.0)
-        self._target_x_spin.setSingleStep(1.0)
-        self._target_x_spin.setDecimals(2)
-        self._target_x_spin.setValue(72.0)
-        self._target_x_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._target_x_spin.setStyleSheet(INPUT_STYLE)
-        lbl_tx = QLabel("Target X (m)")
-        lbl_tx.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_tx, self._target_x_spin)
+        self._cd_display.setText(f"Cd: {cd:.2f}  ({shape})")
+        self._cda_display.setText(f"CdA: {CdA:.4f} m²")
+        self._beta_display.setText(f"β: {beta:.1f} kg/m²")
 
-        self._target_y_spin = NoWheelDoubleSpinBox(panel)
-        self._target_y_spin.setRange(-1_000_000.0, 1_000_000.0)
-        self._target_y_spin.setSingleStep(1.0)
-        self._target_y_spin.setDecimals(2)
-        self._target_y_spin.setValue(0.0)
-        self._target_y_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._target_y_spin.setStyleSheet(INPUT_STYLE)
-        lbl_ty = QLabel("Target Y (m)")
-        lbl_ty.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_ty, self._target_y_spin)
+        # Update dim1 label based on shape semantics
+        if shape in ("sphere", "cylinder", "blunt_cone"):
+            self._dim1_label.setText("Diameter (m)")
+        else:
+            self._dim1_label.setText("Length (m)")
 
-        self._target_elevation_spin = NoWheelDoubleSpinBox(panel)
-        self._target_elevation_spin.setRange(-10_000.0, 10_000.0)
-        self._target_elevation_spin.setSingleStep(1.0)
-        self._target_elevation_spin.setDecimals(1)
-        self._target_elevation_spin.setValue(0.0)
-        self._target_elevation_spin.valueChanged.connect(lambda _: (self._set_dirty(True), self._update_panel_summaries()))
-        self._target_elevation_spin.setStyleSheet(INPUT_STYLE)
-        lbl_te = QLabel("Target Elevation (m)")
-        lbl_te.setStyleSheet(f"color: {PRIMARY_COLOR};")
-        form.addRow(lbl_te, self._target_elevation_spin)
+        # dim2 is only meaningful for box
+        self._dim2_label.setVisible(shape == "box")
+        self._dim2_spin.setVisible(shape == "box")
 
-        panel.content_layout.addLayout(form)
-        self._adv_sim_panel = panel
-        self._adv_sim_widgets = [
-            self._uav_altitude_spin,
-            self._target_x_spin,
-            self._target_y_spin,
-            self._target_elevation_spin,
-        ]
-        return panel
+        # Guard: commit_btn not yet created during _build_payload_panel init call
+        if hasattr(self, "_commit_btn"):
+            self._set_dirty(True)
+        if hasattr(self, "_payload_panel"):
+            self._update_panel_summaries()
 
     def _update_panel_summaries(self) -> None:
         """Update dynamic summary labels on all panels."""
         if hasattr(self, "_payload_panel"):
-            pay_name = self._payload_combo.currentText() or "—"
+            pay_name = self._payload_combo.currentText() if hasattr(self, "_payload_combo") else "—"
             self._payload_panel.summary_label.setText(
-                f"{pay_name} | m={self._mass_spin.value():.2f} Cd={self._cd_spin.value():.2f}"
+                f"{pay_name} | m={self._mass_spin.value():.2f} CdA={self._CdA:.4f}"
             )
-        if hasattr(self, "_eval_panel"):
-            rep = "Fixed" if self._reproducible else "Auto"
-            self._eval_panel.summary_label.setText(
-                f"n={self._n_samples_spin.value()} | Seed: {rep}"
+        if hasattr(self, "_target_panel") and hasattr(self, "_target_radius_spin"):
+            self._target_panel.summary_label.setText(
+                f"r={self._target_radius_spin.value():.1f} m"
             )
         if hasattr(self, "_policy_panel"):
             d = self._doctrine_combo.currentData() or self._doctrine
             desc = DOCTRINE_DESCRIPTIONS.get(str(d), "")
             self._policy_panel.summary_label.setText(desc[:60] + "…" if len(desc) > 60 else desc)
-        if hasattr(self, "_adv_sim_panel"):
-            self._adv_sim_panel.summary_label.setText(
-                f"H={self._uav_altitude_spin.value():.0f}m | T=({self._target_x_spin.value():.0f}, {self._target_y_spin.value():.0f}, {self._target_elevation_spin.value():.0f})m"
-            )
-
-    def apply_system_mode(self, mode: str) -> None:
-        """Enable/disable Advanced Simulation section. Disabled in LIVE (telemetry-driven)."""
-        mode = str(mode or "SNAPSHOT").strip().upper()
-        enabled = mode != "LIVE"
-        if hasattr(self, "_adv_sim_widgets"):
-            for w in self._adv_sim_widgets:
-                w.setEnabled(enabled)
 
     def _update_mode_strip_border(self) -> None:
         bc = "#2cff05" if self._mission_mode == "TACTICAL" else "#38e84a"
@@ -655,48 +548,6 @@ class MissionConfigTab(QWidget):
             self._humanitarian_frame.setStyleSheet(
                 "QFrame#modeOptionFrame { border: 1px solid #38e84a; border-radius: 3px; padding: 3px; background-color: transparent; }"
             )
-
-    def _update_fidelity_strip_border(self) -> None:
-        """Update Standard/Advanced frame borders to show selected fidelity."""
-        if self._simulation_fidelity == "standard":
-            self._standard_frame.setStyleSheet(
-                "QFrame#modeOptionFrame { border: 1px solid #2cff05; border-radius: 3px; padding: 3px; background-color: transparent; }"
-            )
-            self._advanced_frame.setStyleSheet(
-                "QFrame#modeOptionFrame { border: 1px solid transparent; border-radius: 3px; padding: 3px; background-color: transparent; }"
-            )
-        else:
-            self._standard_frame.setStyleSheet(
-                "QFrame#modeOptionFrame { border: 1px solid transparent; border-radius: 3px; padding: 3px; background-color: transparent; }"
-            )
-            self._advanced_frame.setStyleSheet(
-                "QFrame#modeOptionFrame { border: 1px solid #2cff05; border-radius: 3px; padding: 3px; background-color: transparent; }"
-            )
-
-    def _on_fidelity_changed(self) -> None:
-        """Update simulation_fidelity from Standard/Advanced toggle. Does not push config or run simulation."""
-        if self._standard_radio.isChecked():
-            new_fidelity = "standard"
-        else:
-            new_fidelity = "advanced"
-        if new_fidelity == self._simulation_fidelity:
-            return
-        self._simulation_fidelity = new_fidelity
-        self._update_fidelity_strip_border()
-        self._set_dirty(True)
-        self._update_panel_summaries()
-
-    def _set_n_samples(self, n: int) -> None:
-        self._n_samples_spin.setValue(n)
-        self._set_dirty(True)
-        self._update_panel_summaries()
-
-    def _on_reproducible_changed(self, state: int) -> None:
-        self._reproducible = state == 2
-        self._seed_spin.setVisible(self._reproducible)
-        self._seed_row_label.setVisible(self._reproducible)
-        self._set_dirty(True)
-        self._update_panel_summaries()
 
     def _on_doctrine_changed(self, _idx: int) -> None:
         d = self._doctrine_combo.currentData()
@@ -739,18 +590,39 @@ class MissionConfigTab(QWidget):
     def _on_payload_changed(self, _idx: int) -> None:
         pid = self._payload_combo.currentData()
         if pid:
-            try:
-                mass, cd, area = get_default_physics_for_payload(pid)
+            entry = next((p for p in PAYLOAD_LIBRARY if p.get("id") == pid), None)
+            if entry is not None:
+                mass = float(entry.get("mass_kg", entry.get("mass", 1.0)))
+                shape = str(entry.get("shape", "box"))
+                dims = list(entry.get("dims", [0.2, 0.2]))
+
+                self._shape_combo.blockSignals(True)
+                self._mass_spin.blockSignals(True)
+                self._dim1_spin.blockSignals(True)
+                self._dim2_spin.blockSignals(True)
+
+                idx = self._shape_combo.findText(shape)
+                if idx >= 0:
+                    self._shape_combo.setCurrentIndex(idx)
                 self._mass_spin.setValue(mass)
-                self._cd_spin.setValue(cd)
-                self._area_spin.setValue(area)
+                if len(dims) >= 1:
+                    self._dim1_spin.setValue(float(dims[0]))
+                if len(dims) >= 2:
+                    self._dim2_spin.setValue(float(dims[1]))
+                else:
+                    self._dim2_spin.setValue(float(dims[0]))
+
+                self._shape_combo.blockSignals(False)
+                self._mass_spin.blockSignals(False)
+                self._dim1_spin.blockSignals(False)
+                self._dim2_spin.blockSignals(False)
+
                 self._payload_id = str(pid)
-            except Exception:
+            else:
                 self._payload_id = None
         else:
             self._payload_id = None
-        self._set_dirty(True)
-        self._update_panel_summaries()
+        self._recompute_payload_physics()
 
     @Slot(int)
     def _on_threshold_slider_changed(self, value: int) -> None:
@@ -784,28 +656,38 @@ class MissionConfigTab(QWidget):
         if not self._config_committed:
             if new_mode == "TACTICAL":
                 self._doctrine_combo.setCurrentIndex(DOCTRINE_VALUES.index("BALANCED"))
-                self._n_samples_spin.setValue(1000)
+                if hasattr(self, "_target_radius_spin"):
+                    self._target_radius_spin.setValue(15.0)
+                self._threshold_spinbox.setValue(75.0)
             else:
                 self._doctrine_combo.setCurrentIndex(DOCTRINE_VALUES.index("STRICT"))
-                self._n_samples_spin.setValue(1500)
+                if hasattr(self, "_target_radius_spin"):
+                    self._target_radius_spin.setValue(100.0)
+                self._threshold_spinbox.setValue(55.0)
             self._update_doctrine_display()
         else:
+            if new_mode == "TACTICAL":
+                defaults_desc = "Balanced doctrine, 15 m radius, 75% threshold"
+            else:
+                defaults_desc = "Strict doctrine, 100 m radius, 55% threshold"
             reply = QMessageBox.question(
                 self,
                 "Apply recommended defaults?",
-                f"Switch to {new_mode} mode? Apply recommended defaults?\n"
-                f"TACTICAL: Balanced, 1000 samples\n"
-                f"HUMANITARIAN: Strict, 1500 samples",
+                f"Switch to {new_mode} mode? Apply recommended defaults?\n{defaults_desc}",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes,
             )
             if reply == QMessageBox.StandardButton.Yes:
                 if new_mode == "TACTICAL":
                     self._doctrine_combo.setCurrentIndex(DOCTRINE_VALUES.index("BALANCED"))
-                    self._n_samples_spin.setValue(1000)
+                    if hasattr(self, "_target_radius_spin"):
+                        self._target_radius_spin.setValue(15.0)
+                    self._threshold_spinbox.setValue(75.0)
                 else:
                     self._doctrine_combo.setCurrentIndex(DOCTRINE_VALUES.index("STRICT"))
-                    self._n_samples_spin.setValue(1500)
+                    if hasattr(self, "_target_radius_spin"):
+                        self._target_radius_spin.setValue(100.0)
+                    self._threshold_spinbox.setValue(55.0)
                 self._update_doctrine_display()
             else:
                 self._mission_mode = prev
@@ -852,26 +734,21 @@ class MissionConfigTab(QWidget):
 
     def get_config(self) -> dict:
         """Return full config dict for config_state push."""
-        seed = self._seed_spin.value() if self._reproducible else random.randint(0, 2_147_483_647)
-        fidelity = (self._simulation_fidelity or "advanced").strip().lower()
-        if fidelity not in FIDELITY_VALUES:
-            fidelity = "advanced"
+        cd = SHAPE_CD.get(self._shape, 1.0)
+        area = self._CdA / max(cd, 1e-6)
         return {
             "mission_mode": self._mission_mode,
             "doctrine_mode": self._doctrine,
-            "simulation_fidelity": fidelity,
             "payload_id": self._payload_id,
             "threshold_pct": self._threshold_spinbox.value(),
-            "n_samples": self._n_samples_spin.value(),
-            "random_seed": seed,
-            "reproducible": self._reproducible,
             "mass": self._mass_spin.value(),
-            "cd": self._cd_spin.value(),
-            "area": self._area_spin.value(),
-            "uav_altitude": float(self._uav_altitude_spin.value()),
-            "target_x": float(self._target_x_spin.value()),
-            "target_y": float(self._target_y_spin.value()),
-            "target_elevation": float(self._target_elevation_spin.value()),
+            "shape": self._shape,
+            "dims": list(self._dims),
+            "cd": cd,
+            "area": round(area, 6),
+            "CdA": self._CdA,
+            "cd_uncertainty": self._cd_uncertainty,
+            "target_radius": self._target_radius_spin.value(),
         }
 
     def init_from_config(self, cfg: dict) -> None:
@@ -884,70 +761,56 @@ class MissionConfigTab(QWidget):
         self._threshold_pct = th
         self._threshold_slider.blockSignals(False)
         self._threshold_spinbox.blockSignals(False)
-        fidelity = str(cfg.get("simulation_fidelity", "advanced")).strip().lower()
-        if fidelity not in FIDELITY_VALUES:
-            fidelity = "advanced"
-        self._simulation_fidelity = fidelity
-        if hasattr(self, "_standard_radio") and hasattr(self, "_advanced_radio"):
-            self._standard_radio.blockSignals(True)
-            self._advanced_radio.blockSignals(True)
-            self._standard_radio.setChecked(fidelity == "standard")
-            self._advanced_radio.setChecked(fidelity == "advanced")
-            self._standard_radio.blockSignals(False)
-            self._advanced_radio.blockSignals(False)
-            self._update_fidelity_strip_border()
+
         self._mass_spin.blockSignals(True)
-        self._cd_spin.blockSignals(True)
-        self._area_spin.blockSignals(True)
-        self._n_samples_spin.blockSignals(True)
-        self._seed_spin.blockSignals(True)
         self._mass_spin.setValue(float(cfg.get("mass", 1.0)))
-        self._cd_spin.setValue(float(cfg.get("cd", 0.47)))
-        self._area_spin.setValue(float(cfg.get("area", 0.01)))
-        self._n_samples_spin.setValue(int(cfg.get("n_samples", 1000)))
-        self._seed_spin.setValue(int(cfg.get("random_seed", 42)))
-        if hasattr(self, "_uav_altitude_spin"):
-            self._uav_altitude_spin.blockSignals(True)
-            self._target_x_spin.blockSignals(True)
-            self._target_y_spin.blockSignals(True)
-            self._target_elevation_spin.blockSignals(True)
-            self._uav_altitude_spin.setValue(float(cfg.get("uav_altitude", 100.0)))
-            self._target_x_spin.setValue(float(cfg.get("target_x", 72.0)))
-            self._target_y_spin.setValue(float(cfg.get("target_y", 0.0)))
-            tp = cfg.get("target_pos")
-            te = cfg.get("target_elevation")
-            if te is not None:
-                te_val = float(te)
-            elif isinstance(tp, (list, tuple)) and len(tp) >= 3:
-                te_val = float(tp[2])
-            else:
-                te_val = 0.0
-            self._target_elevation_spin.setValue(te_val)
-            self._uav_altitude_spin.blockSignals(False)
-            self._target_x_spin.blockSignals(False)
-            self._target_y_spin.blockSignals(False)
-            self._target_elevation_spin.blockSignals(False)
         self._mass_spin.blockSignals(False)
-        self._cd_spin.blockSignals(False)
-        self._area_spin.blockSignals(False)
-        self._n_samples_spin.blockSignals(False)
-        self._seed_spin.blockSignals(False)
+
+        if hasattr(self, "_shape_combo"):
+            shape = str(cfg.get("shape", "box"))
+            idx = self._shape_combo.findText(shape)
+            if idx >= 0:
+                self._shape_combo.blockSignals(True)
+                self._shape_combo.setCurrentIndex(idx)
+                self._shape_combo.blockSignals(False)
+
+        if hasattr(self, "_dim1_spin") and hasattr(self, "_dim2_spin"):
+            dims = list(cfg.get("dims", [0.2, 0.2]))
+            self._dim1_spin.blockSignals(True)
+            self._dim2_spin.blockSignals(True)
+            if len(dims) >= 1:
+                self._dim1_spin.setValue(float(dims[0]))
+            if len(dims) >= 2:
+                self._dim2_spin.setValue(float(dims[1]))
+            self._dim1_spin.blockSignals(False)
+            self._dim2_spin.blockSignals(False)
+
+        if hasattr(self, "_target_radius_spin"):
+            self._target_radius_spin.blockSignals(True)
+            self._target_radius_spin.setValue(float(cfg.get("target_radius", 15.0)))
+            self._target_radius_spin.blockSignals(False)
+
+        self._recompute_payload_physics()
         self._update_panel_summaries()
+
+    def apply_system_mode(self, mode: str) -> None:
+        """No-op stub — fidelity UI removed in rebuild. Called by MainWindow."""
+        pass
+
+    def update_target_status(self, position) -> None:
+        """Called by MainWindow when target position changes on the tactical map."""
+        if position is None:
+            self._target_status_label.setText("⬤ Target: Not Set")
+            self._target_status_label.setStyleSheet("color: #ff4444; font-size: 12px;")
+        else:
+            x, y, z = float(position[0]), float(position[1]), float(position[2])
+            self._target_status_label.setText(
+                f"⬤ Target: ENU ({x:.1f}, {y:.1f}, {z:.1f}) m"
+            )
+            self._target_status_label.setStyleSheet("color: #00ff88; font-size: 12px;")
 
     def load_from_snapshot(self, snapshot: dict) -> None:
         """Update display from snapshot. Does not set dirty."""
-        fidelity = str(snapshot.get("simulation_fidelity", "advanced")).strip().lower()
-        if fidelity not in FIDELITY_VALUES:
-            fidelity = "advanced"
-        self._simulation_fidelity = fidelity
-        if hasattr(self, "_standard_radio") and hasattr(self, "_advanced_radio"):
-            self._standard_radio.blockSignals(True)
-            self._advanced_radio.blockSignals(True)
-            self._standard_radio.setChecked(fidelity == "standard")
-            self._advanced_radio.setChecked(fidelity == "advanced")
-            self._standard_radio.blockSignals(False)
-            self._advanced_radio.blockSignals(False)
-            self._update_fidelity_strip_border()
         mode = str(snapshot.get("mission_mode", "TACTICAL")).strip().upper()
         if mode in MISSION_MODES:
             self._mission_mode = mode

@@ -7,8 +7,8 @@ target release point, guidance vector, heading error, and drop status.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 import numpy as np
 
@@ -34,6 +34,7 @@ class GuidanceResult:
     distance_to_corridor: float
     time_to_release: float
     optimal_p_hit: float
+    optimal_p_hit_mc: Optional[float] = None
 
 
 def compute_corridor_guidance(
@@ -126,6 +127,7 @@ def compute_corridor_guidance(
 
     # 6) Status
     optimal_p_hit = float(getattr(entry, "optimal_p_hit", 0.0))
+    optimal_p_hit_mc: Optional[float] = getattr(entry, "optimal_p_hit_mc", None)
     time_to_release = float(entry.optimal_release_time)
     distance_to_corridor = abs(float(entry.offset))
 
@@ -147,8 +149,16 @@ def compute_corridor_guidance(
         status = "NO_DROP"
     elif lateral_distance > corridor_half_width:
         status = "APPROACH_CORRIDOR"
-    elif abs(time_to_release) < drop_now_time_threshold:
+    elif (
+        abs(time_to_release) < drop_now_time_threshold
+        and optimal_p_hit_mc is not None
+        and optimal_p_hit_mc >= threshold
+    ):
+        # MC-confirmed drop window: UT said feasible AND full MC agrees
         status = "DROP_NOW"
+    elif abs(time_to_release) < drop_now_time_threshold:
+        # UT says release window, but MC confirmation still pending
+        status = "IN_DROP_ZONE"
     else:
         status = "IN_DROP_ZONE"
 
@@ -160,4 +170,5 @@ def compute_corridor_guidance(
         distance_to_corridor=distance_to_corridor,
         time_to_release=time_to_release,
         optimal_p_hit=optimal_p_hit,
+        optimal_p_hit_mc=optimal_p_hit_mc,
     )

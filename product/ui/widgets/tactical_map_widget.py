@@ -4,7 +4,7 @@ import math
 import random
 from typing import Iterable, List, Tuple
 
-from PySide6.QtCore import QPointF, Qt, QRectF
+from PySide6.QtCore import QPointF, Qt, QRectF, Signal
 from PySide6.QtGui import QBrush, QFont, QImage, QPen, QPixmap, QPolygonF, QPainter, QColor, QTransform
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
@@ -723,6 +723,9 @@ class ImpactHeatmapLayer:
 class TacticalMapWidget(QGraphicsView):
     """QGraphicsView-based tactical map widget."""
 
+    # Emitted when operator sets a target via left-click: payload is np.ndarray([x, y, 0.0])
+    target_position_set = Signal(object)
+
     def _make_text_item(self, text: str, x: float, y: float, color: QColor, font: QFont | None = None) -> QGraphicsTextItem:
         item = QGraphicsTextItem(text)
         item.setDefaultTextColor(color)
@@ -759,6 +762,7 @@ class TacticalMapWidget(QGraphicsView):
         self._panning = False
         self._last_pan_pos = None
         self.follow_uav = True
+        self._auto_fitted = False
         self.focus_mode = False
         self.focus_radius = 300.0
 
@@ -785,6 +789,8 @@ class TacticalMapWidget(QGraphicsView):
         self.impact_layer = ImpactEllipseLayer(self.scene)
         self.corridor_layer = CorridorLayer(self.scene)
         self.guidance_arrow = GuidanceArrow(self.scene)
+        self._mission_committed = False
+        self._clear_guidance_arrow()
         self.scatter_layer = ImpactScatterLayer(self.scene)
         self.trail_layer = UAVTrailLayer(self.scene)
         self.wind_field = WindFieldLayer(self.scene)
@@ -950,9 +956,13 @@ class TacticalMapWidget(QGraphicsView):
         if self.focus_mode:
             self.boundary_indicator.update(QPointF(sx, sy), self.sceneRect())
 
-    def update_target(self, x: float, y: float) -> None:
+    def update_target(self, x, y=None) -> None:
+        if x is None:
+            self.target_marker.setVisible(False)
+            return
         # Persistent items: update only geometry.
-        sx, sy = self._transform.world_to_scene(x, y)
+        sx, sy = self._transform.world_to_scene(float(x), float(y))
+        self.target_marker.set_visible(True)
         self.target_marker.set_position(sx, sy)
         self._last_target_scene_pos = (sx, sy)
         if self.focus_mode:
@@ -963,6 +973,32 @@ class TacticalMapWidget(QGraphicsView):
         elif not self._initial_center_done and not self.follow_uav:
             self.centerOn(sx, sy)
             self._initial_center_done = True
+
+    def fit_view_to_uav_and_target(self) -> None:
+        """Auto-zoom map to show both UAV and target with 20% padding."""
+        if self._last_uav_scene_pos is None or self._last_target_scene_pos is None:
+            return
+        ux, uy = self._last_uav_scene_pos
+        tx, ty = self._last_target_scene_pos
+        min_x = min(ux, tx)
+        max_x = max(ux, tx)
+        min_y = min(uy, ty)
+        max_y = max(uy, ty)
+        pad_x = max((max_x - min_x) * 0.2, 50.0)
+        pad_y = max((max_y - min_y) * 0.2, 50.0)
+        scene_rect = QRectF(
+            min_x - pad_x, min_y - pad_y,
+            (max_x - min_x) + 2 * pad_x,
+            (max_y - min_y) + 2 * pad_y,
+        )
+        self.fitInView(scene_rect, Qt.KeepAspectRatio)
+        self._auto_fitted = True
+        self.follow_uav = False
+
+    def resume_follow_uav(self) -> None:
+        """Re-enable UAV centering after auto-fit pause."""
+        self.follow_uav = True
+        self._auto_fitted = False
 
     def update_impact_ellipse(self, mean_x: float, mean_y: float, a: float, b: float, angle: float) -> None:
         # Persistent items: update only geometry.
@@ -999,7 +1035,18 @@ class TacticalMapWidget(QGraphicsView):
         if hasattr(self, '_no_feed_label'):
             self._no_feed_label.hide()
 
+    def _clear_guidance_arrow(self) -> None:
+        self.guidance_arrow.set_visible(False)
+
+    def set_mission_committed(self, committed: bool) -> None:
+        self._mission_committed = committed
+        if not committed:
+            self._clear_guidance_arrow()
+
     def update_guidance_arrow(self) -> None:
+        if not self._mission_committed:
+            self._clear_guidance_arrow()
+            return
         # Persistent items: update only geometry.
         if not self._last_uav_scene_pos:
             return
@@ -1103,6 +1150,8 @@ class TacticalMapWidget(QGraphicsView):
             world_x = scene_pos.x()
             world_y = scene_pos.y()
             self.update_target(world_x, world_y)
+            import numpy as _np
+            self.target_position_set.emit(_np.array([world_x, world_y, 0.0], dtype=float))
             event.accept()
             return
 
@@ -1160,6 +1209,7 @@ class TacticalMapWidget(QGraphicsView):
         else:
             text = f"CEP\u2085\u2080: {float(cep_m):.1f} m"
         self._cep_label.setPlainText(text)
+        self._last_cep50_m = float(cep_m)
         sx, sy = center
         # Label 10 px below 68% ellipse center. View applies scale(pxm, -pxm),
         # so "below on screen" is negative Y in scene coords.

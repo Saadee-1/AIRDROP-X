@@ -24,16 +24,16 @@ def _defaults() -> Dict[str, Any]:
         "version": "1.1",
         "build_id": "--",
         "physics_description": (
-            "3-DOF point-mass; gravity -Z; quadratic drag (v_rel); explicit "
-            "Euler."
+            "3-DOF point-mass; gravity -Z; quadratic drag (v_rel); RK2 integrator."
         ),
         "mc_description": (
-            "One wind sample per trajectory; Gaussian uncertainty; fixed seed."
+            "Hybrid UT + MC — Unscented Transform coarse scan (11 sigma points), "
+            "Monte Carlo trajectory verification with Wilson CI early stopping."
         ),
         "random_seed": None,
         "n_samples": None,
         "uncertainty_model": (
-            "Gaussian wind (mean + std), one sample per trajectory."
+            "Gaussian wind + release error; altitude-adaptive N sampling."
         ),
         "dt": None,
         "snapshot_created_at": None,
@@ -138,8 +138,9 @@ def render(ax, **kwargs):
     identity_lines = [
         f"{d['system_name']}  -  v{d['version']}  -  build {d['build_id']}",
         "Physics: " + str(d["physics_description"] or "--"),
-        "Monte Carlo: " + str(d["mc_description"] or "--"),
-        "Config source: configs.mission_configs (ASSUMED)",
+        "Engine: " + str(d["mc_description"] or "--"),
+        "Uncertainty: " + str(d["uncertainty_model"] or "--"),
+        "Config source: Mission Configuration (operator-committed)",
     ]
     y = section("ENGINE IDENTITY", y, identity_lines, line_height=0.14)
 

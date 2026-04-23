@@ -31,7 +31,16 @@
       "Bash(python -m py_compile qt_app/main_window.py product/ui/widgets/tactical_map_widget.py)",
       "Bash(python -m py_compile qt_app/main_window.py product/ui/qt_bridge.py product/ui/tabs/payload_library.py)",
       "Bash(python -m py_compile qt_app/main_window.py qt_app/plots.py)",
-      "Bash(python -m py_compile qt_app/main_window.py product/ui/ui_layout.py)"
+      "Bash(python -m py_compile qt_app/main_window.py product/ui/ui_layout.py)",
+      "Bash(python -m py_compile product/ui/tabs/payload_library.py)",
+      "Bash(python -m py_compile qt_app/mission_config_tab.py)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(python -m py_compile \"e:/AIRDROP-X/qt_app/main_window.py\")",
+      "Bash(python -m py_compile product/guidance/corridor_guidance.py)",
+      "Bash(python -m py_compile e:/AIRDROP-X/product/ui/tabs/system_status.py)",
+      "Bash(python -m py_compile e:/AIRDROP-X/qt_app/main_window.py)",
+      "Bash(python -m py_compile E:/AIRDROP-X/product/ui/tactical_map_controller.py)",
+      "Bash(python -m py_compile E:/AIRDROP-X/product/ui/widgets/tactical_map_widget.py)"
     ]
   }
 }

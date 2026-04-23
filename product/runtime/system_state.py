@@ -32,6 +32,7 @@ class SystemState:
     guidance_result: Optional[GuidanceResult] = None
     envelope_result: Optional[ReleaseEnvelopeResult] = None
     envelope_dirty: bool = True
+    wind_vector: Optional[np.ndarray] = None
     running: bool = True
     monte_carlo_running: bool = False
     mission_committed: bool = False

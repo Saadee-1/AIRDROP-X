@@ -88,16 +88,16 @@ class TelemetryLoop(_BaseLoop):
         self._t += dt
 
         # Simple kinematic model.
-        z = 200.0
-        speed = 25.0
-        if self._t < 10.0:
+        z = 100.0
+        speed = 10.0  # m/s — realistic UAV approach speed
+        if self._t < 60.0:
             heading = 0.0
             ax = 0.0
             ay = 0.0
         else:
             # Constant yaw rate turn.
-            omega = 0.12
-            heading = omega * (self._t - 10.0)
+            omega = 0.03  # rad/s — gentle turn, 3.4 deg/s
+            heading = omega * (self._t - 60.0)
             ax = -speed * omega * math.sin(heading)
             ay = speed * omega * math.cos(heading)
 
@@ -124,6 +124,8 @@ class TelemetryLoop(_BaseLoop):
                 acceleration=acc,
                 timestamp=self._t,
             )
+            wind_mean = self._state.settings.get("wind_mean", [2.0, 0.0, 0.0])
+            self._state.wind_vector = np.array(wind_mean, dtype=float)
             # Mark envelope dirty if UAV has moved more than 2.0 meters.
             if self._last_planned_position is not None:
                 distance = float(np.linalg.norm(pos[:2] - self._last_planned_position[:2]))
@@ -190,8 +192,8 @@ class BackgroundPlannerLoop(_BaseLoop):
             offset_step = 8.0
             drop_probability_threshold = 0.5
             compute_heatmap = False
-            max_release_time = 2.5
-            release_time_step = 0.25
+            max_release_time = 4.0
+            release_time_step = 0.5
             target_radius = 15.0
             # Actuator delay 0.3s: accounts for release mechanism
             # servo + trigger latency at operational speeds
@@ -201,11 +203,12 @@ class BackgroundPlannerLoop(_BaseLoop):
             wind_sigma_max = 4.0
             release_pos_sigma = 0.5
             velocity_sigma = 0.02
-            enable_hybrid_estimation = False
+            enable_hybrid_estimation = True
             wind_std = 0.8
             random_seed = 42
             n_samples = 500
             max_mc_verifications = 10
+            cd_uncertainty = 0.20
 
         self._config = _Cfg()
         self._busy = False
@@ -227,9 +230,25 @@ class BackgroundPlannerLoop(_BaseLoop):
             # Read physics values from settings with fallbacks
             settings = self._state.settings
             mass = float(settings.get("mass", 1.0))
-            Cd = float(settings.get("Cd", 1.0))
+            Cd = float(settings.get("Cd", settings.get("cd", 1.0)))
             area = float(settings.get("area", 0.01))
             wind_mean = np.array(settings.get("wind_mean", [2.0, 0.0, 0.0]), dtype=float)
+            CdA = float(settings.get("CdA", Cd * area))
+            beta = float(settings.get("beta", mass / max(CdA, 1e-6)))
+            cd_uncertainty = float(settings.get("cd_uncertainty", 0.20))
+            uav_z = float(vs.position[2])
+            z_max = 300.0
+            k_alt = 0.5
+            n_base = int(settings.get("n_samples", 500))
+            n_min = 200
+            n_adaptive = max(n_min, int(n_base * (1.0 - k_alt * min(uav_z, z_max) / z_max)))
+            self._config.n_samples = n_adaptive
+            self._config.enable_hybrid_estimation = bool(settings.get("enable_hybrid", True))
+            # TODO: wire CdA/beta into propagation context (Phase 1.3b)
+            self._config.target_radius = float(settings.get("target_radius", 15.0))
+            self._config.drop_probability_threshold = (
+                float(settings.get("threshold_pct", 75.0)) / 100.0
+            )
             dt = 0.05
             target_pos = np.asarray(target, dtype=float).reshape(-1)
             ground_z = float(self._terrain.get_elevation(float(target_pos[0]), float(target_pos[1])))
