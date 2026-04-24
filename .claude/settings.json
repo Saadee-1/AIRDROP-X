@@ -41,7 +41,8 @@
       "Bash(python -m py_compile e:/AIRDROP-X/qt_app/main_window.py)",
       "Bash(python -m py_compile E:/AIRDROP-X/product/ui/tactical_map_controller.py)",
       "Bash(python -m py_compile E:/AIRDROP-X/product/ui/widgets/tactical_map_widget.py)",
-      "Bash(git -C e:/AIRDROP-X remote -v)"
+      "Bash(git -C e:/AIRDROP-X remote -v)",
+      "Bash(git -C e:/AIRDROP-X remote set-url origin https://github.com/Saadee-aero/SCYTHE.git)"
     ]
   }
 }
