@@ -571,89 +571,6 @@ class UAVTrailLayer:
             self._count = 0
 
 
-class WindFieldLayer:
-    """Grid of wind arrows across the map."""
-
-    def __init__(self, scene: QGraphicsScene, spacing: float = 150.0) -> None:
-        self._arrows: List[Tuple[QGraphicsLineItem, QGraphicsPolygonItem]] = []
-        extent = 1000.0
-        pen = QPen(QColor("#77bfff"), 1)
-        for x in range(int(-extent), int(extent) + 1, int(spacing)):
-            for y in range(int(-extent), int(extent) + 1, int(spacing)):
-                line = QGraphicsLineItem()
-                line.setPen(pen)
-                line.setOpacity(0.5)
-                line.setZValue(1)
-                head = QGraphicsPolygonItem()
-                head.setPen(pen)
-                head.setBrush(QBrush(QColor("#77bfff")))
-                head.setOpacity(0.5)
-                head.setZValue(1)
-                scene.addItem(line)
-                scene.addItem(head)
-                self._arrows.append((line, head))
-        self._positions = [(x, y) for x in range(int(-extent), int(extent) + 1, int(spacing))
-                           for y in range(int(-extent), int(extent) + 1, int(spacing))]
-        self._main_line = QGraphicsLineItem()
-        self._main_line.setPen(pen)
-        self._main_line.setOpacity(0.6)
-        self._main_line.setZValue(2)
-        self._main_head = QGraphicsPolygonItem()
-        self._main_head.setPen(pen)
-        self._main_head.setBrush(QBrush(QColor("#77bfff")))
-        self._main_head.setOpacity(0.6)
-        self._main_head.setZValue(2)
-        scene.addItem(self._main_line)
-        scene.addItem(self._main_head)
-
-    def update_field(self, wind_x: float, wind_y: float, zoom_level: float, target: Tuple[float, float] | None) -> None:
-        speed = math.hypot(float(wind_x), float(wind_y))
-        length = min(80.0, speed * 10.0)
-        length = max(10.0, length)
-        angle = math.atan2(float(wind_y), float(wind_x))
-        dx = length * math.cos(angle)
-        dy = length * math.sin(angle)
-        if zoom_level < 0.8:
-            for line, head in self._arrows:
-                line.setVisible(False)
-                head.setVisible(False)
-            if target is not None:
-                x, y = target
-                self._main_line.setLine(x, y, x + dx, y + dy)
-                self._update_head(self._main_head, x, y, x + dx, y + dy)
-                self._main_line.setVisible(True)
-                self._main_head.setVisible(True)
-            else:
-                self._main_line.setVisible(False)
-                self._main_head.setVisible(False)
-            return
-        self._main_line.setVisible(False)
-        self._main_head.setVisible(False)
-        use_sparse = zoom_level < 1.5
-        for (line, head), (x, y) in zip(self._arrows, self._positions):
-            if use_sparse and (x % 300 != 0 or y % 300 != 0):
-                line.setVisible(False)
-                head.setVisible(False)
-                continue
-            x2 = x + dx
-            y2 = y + dy
-            line.setLine(x, y, x2, y2)
-            self._update_head(head, x, y, x2, y2)
-            line.setVisible(True)
-            head.setVisible(True)
-
-    @staticmethod
-    def _update_head(head: QGraphicsPolygonItem, x1: float, y1: float, x2: float, y2: float) -> None:
-        angle = math.atan2(float(y2) - float(y1), float(x2) - float(x1))
-        size = 6.0
-        left = angle + math.radians(150)
-        right = angle - math.radians(150)
-        p1 = QPointF(float(x2), float(y2))
-        p2 = QPointF(float(x2) + size * math.cos(left), float(y2) + size * math.sin(left))
-        p3 = QPointF(float(x2) + size * math.cos(right), float(y2) + size * math.sin(right))
-        head.setPolygon(QPolygonF([p1, p2, p3]))
-
-
 class ImpactHeatmapLayer:
     """Heatmap tiles for impact probability density."""
 
@@ -802,7 +719,6 @@ class TacticalMapWidget(QGraphicsView):
         self._clear_guidance_arrow()
         self.scatter_layer = ImpactScatterLayer(self.scene)
         self.trail_layer = UAVTrailLayer(self.scene)
-        self.wind_field = WindFieldLayer(self.scene)
         self.heatmap_layer = ImpactHeatmapLayer(self.scene)
         self.boundary_indicator = BoundaryIndicator(self.scene)
         self.drift_arrow = DriftArrow(self.scene)
@@ -1003,8 +919,7 @@ class TacticalMapWidget(QGraphicsView):
             (max_y - min_y) + 2 * pad_y,
         )
         self.fitInView(scene_rect, Qt.KeepAspectRatio)
-        self._auto_fitted = True
-        self.follow_uav = False
+        # follow_uav stays True — centering on UAV continues after zoom.
 
     def resume_follow_uav(self) -> None:
         """Re-enable UAV centering after auto-fit pause."""
@@ -1056,30 +971,31 @@ class TacticalMapWidget(QGraphicsView):
             self._uav_tail.setVisible(False)
             self.trail_layer.set_visible(False)
 
-    def update_guidance_arrow(self) -> None:
+    def update_guidance_arrow(self, release_scene_pos: "Tuple[float, float] | None" = None) -> None:
         if not self._mission_committed:
             self._clear_guidance_arrow()
             return
-        # Persistent items: update only geometry.
         if not self._last_uav_scene_pos:
             return
-        line = self.corridor_layer.centerline_points()
-        if not line:
-            return
         u = QPointF(self._last_uav_scene_pos[0], self._last_uav_scene_pos[1])
-        a, b = line
-        vx = b.x() - a.x()
-        vy = b.y() - a.y()
-        denom = vx * vx + vy * vy
-        if denom <= 0:
-            return
-        t = ((u.x() - a.x()) * vx + (u.y() - a.y()) * vy) / denom
-        t = max(0.0, min(1.0, t))
-        px = a.x() + vx * t
-        py = a.y() + vy * t
-        dx = px - u.x()
-        dy = py - u.y()
-        if math.hypot(dx, dy) < 1.0:
+        if release_scene_pos is not None:
+            px, py = float(release_scene_pos[0]), float(release_scene_pos[1])
+        else:
+            # Fallback: project UAV onto corridor centerline.
+            line = self.corridor_layer.centerline_points()
+            if not line:
+                return
+            a, b = line
+            vx = b.x() - a.x()
+            vy = b.y() - a.y()
+            denom = vx * vx + vy * vy
+            if denom <= 0:
+                return
+            t = ((u.x() - a.x()) * vx + (u.y() - a.y()) * vy) / denom
+            t = max(0.0, min(1.0, t))
+            px = a.x() + vx * t
+            py = a.y() + vy * t
+        if math.hypot(px - u.x(), py - u.y()) < 1.0:
             self.guidance_arrow.set_visible(False)
             return
         self.guidance_arrow.set_visible(True)
@@ -1088,11 +1004,6 @@ class TacticalMapWidget(QGraphicsView):
     def update_wind_indicator(self, wind_x: float, wind_y: float) -> None:
         if hasattr(self, "_wind_indicator"):
             self._wind_indicator.update_wind(wind_x, wind_y)
-
-    def update_wind(self, wind_x: float, wind_y: float) -> None:
-        sx = float(wind_x) * self._transform.pixels_per_meter
-        sy = float(wind_y) * self._transform.pixels_per_meter
-        self.wind_field.update_field(sx, sy, self._transform.pixels_per_meter, self._last_target_scene_pos)
 
     def update_scatter(self, points: Iterable[Tuple[float, float]]) -> None:
         if not self.show_scatter:
@@ -1213,8 +1124,11 @@ class TacticalMapWidget(QGraphicsView):
         super().keyPressEvent(event)
 
     def update_cep_label(self, cep_m: float) -> None:
-        center = getattr(self, "_last_ellipse_center_scene", None)
-        if center is None:
+        # Anchor to drift endpoint when available; fall back to ellipse center.
+        anchor = getattr(self, "_last_drift_endpoint_scene", None)
+        if anchor is None:
+            anchor = getattr(self, "_last_ellipse_center_scene", None)
+        if anchor is None:
             self._cep_label.setPlainText("")
             return
         if float(cep_m) > 999.9:
@@ -1223,10 +1137,10 @@ class TacticalMapWidget(QGraphicsView):
             text = f"CEP\u2085\u2080: {float(cep_m):.1f} m"
         self._cep_label.setPlainText(text)
         self._last_cep50_m = float(cep_m)
-        sx, sy = center
-        # Label 10 px below 68% ellipse center. View applies scale(pxm, -pxm),
-        # so "below on screen" is negative Y in scene coords.
-        self._cep_label.setPos(float(sx), float(sy) - 10.0)
+        sx, sy = anchor
+        # 20px below drift endpoint on screen. Y is flipped (scene up = screen down),
+        # so screen-down = scene -20.
+        self._cep_label.setPos(float(sx), float(sy) - 20.0)
 
     def update_status(self, status: str) -> None:
         if getattr(self, "_corridor_collapsed", False):
@@ -1346,3 +1260,4 @@ class TacticalMapWidget(QGraphicsView):
         sx2, sy2 = self._transform.world_to_scene(impact_x, impact_y)
         self.drift_arrow.update(sx1, sy1, sx2, sy2)
         self.drift_arrow.set_visible(True)
+        self._last_drift_endpoint_scene = (float(sx2), float(sy2))

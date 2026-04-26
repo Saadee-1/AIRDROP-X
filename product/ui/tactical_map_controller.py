@@ -39,6 +39,8 @@ class TacticalMapController(QObject):
         self._smoothed_hw = 0.0
         self._smoothed_impact_mean: Optional[np.ndarray] = None
         self._smooth_alpha = 0.15  # 0=no update, 1=instant snap
+        self._last_fit_time: float = 0.0
+        self._last_drift_update: float = 0.0
 
     def start(self) -> None:
         self._timer.start()
@@ -106,6 +108,13 @@ class TacticalMapController(QObject):
         elif not mission_committed:
             self._widget.update_target(None)
 
+        # Auto-zoom to keep both UAV and target visible (3s throttle).
+        if mission_committed and vehicle_pos is not None and target_position is not None:
+            now_fit = time.monotonic()
+            if now_fit - self._last_fit_time >= 3.0:
+                self._last_fit_time = now_fit
+                self._widget.fit_view_to_uav_and_target()
+
         if isinstance(tactical_state, TacticalMapState):
             self._apply_tactical_state(tactical_state, vehicle_pos)
             ub = tactical_state.uncertainty_breakdown or {}
@@ -128,7 +137,6 @@ class TacticalMapController(QObject):
                     self._widget.drift_arrow.set_visible(False)
 
         if wind_vector is not None and mission_committed:
-            self._widget.update_wind(wind_vector[0], wind_vector[1])
             # Trace: SystemState.wind_vector → controller → widget.update_wind_indicator
             # → WindIndicatorLayer.update_wind → paintEvent at 30 Hz.
             self._widget.update_wind_indicator(wind_vector[0], wind_vector[1])
@@ -140,7 +148,24 @@ class TacticalMapController(QObject):
                 self._widget.update_heatmap(impact_points)
 
         self._widget.set_mission_committed(mission_committed)
-        self._widget.update_guidance_arrow()
+
+        # Compute release scene position for guidance arrow:
+        # release_point = vehicle_pos + vehicle_vel * optimal_release_time
+        _guidance_release_scene = None
+        if mission_committed and vehicle_pos is not None and vehicle_velocity is not None and envelope_result is not None:
+            try:
+                envelope_list = self._get(envelope_result, "envelope", None)
+                if envelope_list:
+                    best = max(envelope_list, key=lambda e: getattr(e, "optimal_p_hit", 0.0))
+                    opt_t = getattr(best, "optimal_release_time", None)
+                    if opt_t is not None:
+                        vel_arr = np.asarray(vehicle_velocity, dtype=float).flatten()
+                        rx = float(vehicle_pos[0]) + float(vel_arr[0]) * float(opt_t)
+                        ry = float(vehicle_pos[1]) + float(vel_arr[1]) * float(opt_t)
+                        _guidance_release_scene = self._widget._transform.world_to_scene(rx, ry)
+            except Exception:
+                pass
+        self._widget.update_guidance_arrow(_guidance_release_scene)
 
         status = self._get(guidance_result, "status", None)
         if status is not None and mission_committed:
@@ -221,9 +246,12 @@ class TacticalMapController(QObject):
         self._widget.update_release_timer(t_drop)
 
         release_point = self._extract_release_point(guidance_result, envelope_result, tactical_state)
-        impact_mean = self._extract_impact_mean(envelope_result, tactical_state)
-        if release_point and impact_mean and mission_committed:
-            self._widget.update_drift(release_point[0], release_point[1], impact_mean[0], impact_mean[1])
+        impact_mean_drift = self._extract_impact_mean(envelope_result, tactical_state)
+        if release_point and impact_mean_drift and mission_committed:
+            _now_drift = time.monotonic()
+            if _now_drift - self._last_drift_update >= 1.0:
+                self._last_drift_update = _now_drift
+                self._widget.update_drift(release_point[0], release_point[1], impact_mean_drift[0], impact_mean_drift[1])
         else:
             self._widget.drift_arrow.set_visible(False)
 
@@ -315,11 +343,23 @@ class TacticalMapController(QObject):
             try:
                 offsets = np.asarray(list(feasible_offsets), dtype=float)
                 if offsets.size:
-                    vel_arr = np.asarray(vehicle_velocity, dtype=float).flatten()
-                    vel_xy = vel_arr[:2]
-                    norm = float(np.linalg.norm(vel_xy))
-                    if norm > 1e-6:
-                        fwd = vel_xy / norm
+                    # Approach azimuth: direction from vehicle toward impact_mean.
+                    # Falls back to velocity heading when impact_mean is unavailable.
+                    fwd = None
+                    if impact_mean_display is not None:
+                        approach = np.asarray(impact_mean_display, dtype=float)[:2] - np.asarray(vehicle_pos, dtype=float)
+                        anorm = float(np.linalg.norm(approach))
+                        if anorm > 1e-6:
+                            fwd = approach / anorm
+                    if fwd is None:
+                        vel_arr = np.asarray(vehicle_velocity, dtype=float).flatten()
+                        vel_xy = vel_arr[:2]
+                        norm = float(np.linalg.norm(vel_xy))
+                        if norm <= 1e-6:
+                            fwd = None
+                        else:
+                            fwd = vel_xy / norm
+                    if fwd is not None:
                         lat = np.array([-fwd[1], fwd[0]], dtype=float)
                         hw_raw = float(np.max(np.abs(offsets)))
                         self._smoothed_hw = (
