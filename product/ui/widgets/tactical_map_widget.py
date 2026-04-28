@@ -210,14 +210,10 @@ class TargetMarker(QGraphicsItemGroup):
 
     def __init__(self) -> None:
         super().__init__()
-        circle = QGraphicsEllipseItem(-10.0, -10.0, 20.0, 20.0)
-        circle.setPen(QPen(QColor("#ffff33"), 2))
-        circle.setBrush(QBrush(Qt.transparent))
         h = QGraphicsLineItem(-10.0, 0.0, 10.0, 0.0)
         h.setPen(QPen(QColor("#ffff33"), 2))
         v = QGraphicsLineItem(0.0, -10.0, 0.0, 10.0)
         v.setPen(QPen(QColor("#ffff33"), 2))
-        self.addToGroup(circle)
         self.addToGroup(h)
         self.addToGroup(v)
         self.setZValue(5)
@@ -248,15 +244,8 @@ class CorridorLayer(QGraphicsPolygonItem):
         self._centerline.setZValue(4)
         scene.addItem(self._centerline)
 
-        self._entry_marker = QGraphicsPolygonItem()
-        self._entry_marker.setPen(QPen(QColor("#00ffff"), 2))
-        self._entry_marker.setBrush(QBrush(QColor("#00ffff")))
-        self._entry_marker.setZValue(4)
-        scene.addItem(self._entry_marker)
-
         self._centerline_points: Tuple[QPointF, QPointF] | None = None
         self._collapsed = False
-        self._entry_point: QPointF | None = None
 
     def update_corridor(self, points: Iterable[Tuple[float, float]]) -> None:
         pts = list(points)
@@ -278,7 +267,6 @@ class CorridorLayer(QGraphicsPolygonItem):
         poly = QPolygonF([QPointF(float(x), float(y)) for x, y in pts])
         self.setPolygon(poly)
         self._update_centerline(pts)
-        self._update_entry_marker(pts)
 
     def _update_centerline(self, points: Iterable[Tuple[float, float]]) -> None:
         pts = [QPointF(float(x), float(y)) for x, y in points]
@@ -292,32 +280,11 @@ class CorridorLayer(QGraphicsPolygonItem):
         self._centerline.setVisible(True)
         self._centerline_points = (a0, a1)
 
-    def _update_entry_marker(self, points: Iterable[Tuple[float, float]]) -> None:
-        pts = [QPointF(float(x), float(y)) for x, y in points]
-        if len(pts) < 2:
-            self._entry_marker.setVisible(False)
-            self._entry_point = None
-            return
-        entry = QPointF((pts[0].x() + pts[1].x()) * 0.5, (pts[0].y() + pts[1].y()) * 0.5)
-        tri = QPolygonF(
-            [
-                QPointF(entry.x(), entry.y() + 6.0),
-                QPointF(entry.x() - 5.0, entry.y() - 4.0),
-                QPointF(entry.x() + 5.0, entry.y() - 4.0),
-            ]
-        )
-        self._entry_marker.setPolygon(tri)
-        self._entry_marker.setVisible(True)
-        self._entry_point = entry
-
     def set_centerline_visible(self, visible: bool) -> None:
         self._centerline.setVisible(visible)
 
     def centerline_points(self) -> Tuple[QPointF, QPointF] | None:
         return self._centerline_points
-
-    def entry_point(self) -> QPointF | None:
-        return self._entry_point
 
     def is_collapsed(self) -> bool:
         return self._collapsed
@@ -509,65 +476,6 @@ class ImpactScatterLayer:
             item.setVisible(visible)
 
 
-class UAVTrailLayer:
-    """UAV path history (last 50 positions)."""
-
-    def __init__(self, scene: QGraphicsScene) -> None:
-        self._max = 50
-        self._points: List[QPointF | None] = [None] * self._max
-        self._index = 0
-        self._count = 0
-        self._segments: List[QGraphicsLineItem] = []
-        pen = QPen(QColor("#00ffff"), 2)
-        for _ in range(self._max - 1):
-            seg = QGraphicsLineItem()
-            seg.setPen(pen)
-            seg.setZValue(6)
-            seg.setOpacity(0.1)
-            seg.setVisible(False)
-            scene.addItem(seg)
-            self._segments.append(seg)
-
-    def update(self, x: float, y: float) -> None:
-        pt = QPointF(float(x), float(y))
-        self._points[self._index] = pt
-        self._index = (self._index + 1) % self._max
-        self._count = min(self._count + 1, self._max)
-        ordered: List[QPointF] = []
-        if self._count < self._max:
-            for i in range(self._count):
-                if self._points[i] is not None:
-                    ordered.append(self._points[i])
-        else:
-            for i in range(self._max):
-                idx = (self._index + i) % self._max
-                p = self._points[idx]
-                if p is not None:
-                    ordered.append(p)
-        for seg in self._segments:
-            seg.setVisible(False)
-        if len(ordered) < 2:
-            return
-        total_segs = len(ordered) - 1
-        for i in range(total_segs):
-            seg = self._segments[i]
-            p1 = ordered[i]
-            p2 = ordered[i + 1]
-            seg.setLine(p1.x(), p1.y(), p2.x(), p2.y())
-            t = i / max(total_segs - 1, 1)
-            opacity = 0.6 - (0.6 - 0.1) * (1.0 - t)
-            seg.setOpacity(max(0.1, min(0.6, opacity)))
-            seg.setVisible(True)
-
-    def set_visible(self, visible: bool) -> None:
-        for seg in self._segments:
-            seg.setVisible(visible)
-        if not visible:
-            self._points = [None] * self._max
-            self._index = 0
-            self._count = 0
-
-
 class ImpactHeatmapLayer:
     """Heatmap tiles for impact probability density."""
 
@@ -697,14 +605,7 @@ class TacticalMapWidget(QGraphicsView):
         self.scene.addItem(self.target_marker)
         self.uav_marker = UAVMarker()
         self.scene.addItem(self.uav_marker)
-        self._uav_tail = QGraphicsLineItem(0.0, 0.0, -30.0, 0.0)
-        self._uav_tail.setPen(QPen(QColor("#00ffff"), 2))
-        self._uav_tail.setFlag(QGraphicsItem.ItemIgnoresTransformations)
-        self._uav_tail.setTransformOriginPoint(0.0, 0.0)
-        self.scene.addItem(self._uav_tail)
-        self._uav_tail.setVisible(False)
         self.uav_marker.setZValue(7)
-        self._uav_tail.setZValue(6.5)
 
         self._cep_label = self._make_text_item("", 0, 0, QColor("#00AA44"), QFont("Consolas", 9))
         self._cep_label.setZValue(50)
@@ -715,7 +616,6 @@ class TacticalMapWidget(QGraphicsView):
         self._mission_committed = False
         self._clear_guidance_arrow()
         self.scatter_layer = ImpactScatterLayer(self.scene)
-        self.trail_layer = UAVTrailLayer(self.scene)
         self.heatmap_layer = ImpactHeatmapLayer(self.scene)
         self.boundary_indicator = BoundaryIndicator(self.scene)
         self.drift_arrow = DriftArrow(self.scene)
@@ -870,11 +770,6 @@ class TacticalMapWidget(QGraphicsView):
         self.uav_marker.set_position(sx, sy)
         self.uav_marker.set_heading(heading)
         self._last_uav_scene_pos = (sx, sy)
-        if self._mission_committed:
-            self._uav_tail.setPos(sx, sy)
-            self._uav_tail.setRotation(float(heading))
-            self._uav_tail.setVisible(True)
-            self.trail_layer.update(sx, sy)
         if self.follow_uav:
             self.centerOn(sx, sy)
         if self.focus_mode:
@@ -972,8 +867,6 @@ class TacticalMapWidget(QGraphicsView):
         self._mission_committed = committed
         if not committed:
             self._clear_guidance_arrow()
-            self._uav_tail.setVisible(False)
-            self.trail_layer.set_visible(False)
 
     def update_guidance_arrow(self, release_scene_pos: "Tuple[float, float] | None" = None) -> None:
         if not self._mission_committed:
