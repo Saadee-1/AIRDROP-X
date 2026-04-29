@@ -310,12 +310,16 @@ class MissionStatusStrip(QWidget):
         advisory_rect = QRect(center_rect.x(), 40, center_rect.width(), 26)
         painter.drawText(advisory_rect, Qt.AlignCenter, advisory)
 
-        # RIGHT: P(HIT) only.
+        # RIGHT: P(HIT) + CEP50, horizontally centered within right panel.
         painter.setPen(QColor("white"))
         painter.setFont(self._font_value)
         phit_rect = QRect(right_rect.x(), 10, right_rect.width(), 24)
         painter.drawText(
             phit_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_phit(self._p_hit, self._p_hit_label),
+        )
+        cep_rect = QRect(right_rect.x(), 38, right_rect.width(), 22)
+        painter.drawText(
+            cep_rect, Qt.AlignHCenter | Qt.AlignVCenter, self._fmt_cep(self._cep_m),
         )
 
         # Corner brackets on center panel — state-colored L-marks.

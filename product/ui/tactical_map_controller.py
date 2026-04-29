@@ -215,6 +215,18 @@ class TacticalMapController(QObject):
         # stores semi-axes (a, b) = (sqrt(λ_major), sqrt(λ_minor)); so
         # λ1+λ2 = a² + b². Trivial-case check: isotropic σ → a=b=σ → CEP =
         # 0.8326·sqrt(2)·σ = 1.1774·σ (matches circular CEP50 formula).
+        cep_m = None
+        if isinstance(tactical_state, TacticalMapState):
+            axes = getattr(tactical_state, "ellipse_axes", None)
+            if axes:
+                try:
+                    a = float(axes[0]); b = float(axes[1])
+                    cep_m = 0.8326 * math.sqrt(max(a * a + b * b, 0.0))
+                except (TypeError, ValueError, IndexError):
+                    cep_m = None
+        else:
+            cep_m = getattr(self._widget, "_last_cep50_m", None)
+
         if self._status_strip is not None:
             if guidance_result is not None:
                 he = self._get(guidance_result, "heading_error", None)
@@ -224,18 +236,15 @@ class TacticalMapController(QObject):
             else:
                 heading_deg = None
                 dist_m = None
-            cep_m = None
-            if isinstance(tactical_state, TacticalMapState):
-                axes = getattr(tactical_state, "ellipse_axes", None)
-                if axes:
-                    try:
-                        a = float(axes[0]); b = float(axes[1])
-                        cep_m = 0.8326 * math.sqrt(max(a * a + b * b, 0.0))
-                    except (TypeError, ValueError, IndexError):
-                        cep_m = None
-            else:
-                cep_m = getattr(self._widget, "_last_cep50_m", None)
             self._status_strip.update_guidance(heading_deg, dist_m, p_hit_strip, cep_m, p_hit_label)
+
+        # CEP50 dashed circle at target — hidden pre-commit, shown post-commit.
+        if target_position is not None and mission_committed:
+            self._widget.update_cep_circle(
+                float(target_position[0]), float(target_position[1]), cep_m, True
+            )
+        else:
+            self._widget.update_cep_circle(None, None, None, False)
 
         # TEMP: remove after profiling
         t2 = time.perf_counter()
@@ -335,7 +344,7 @@ class TacticalMapController(QObject):
                 cep50_m = 0.8326 * math.sqrt(
                     max(float(eigvals[0]), 0.0) + max(float(eigvals[1]), 0.0)
                 )
-                self._widget.update_cep_label(cep50_m)
+                self._widget._last_cep50_m = cep50_m
             except Exception:
                 pass
 

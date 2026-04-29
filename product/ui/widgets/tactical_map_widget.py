@@ -227,12 +227,10 @@ class CorridorLayer(QGraphicsPolygonItem):
 
     def __init__(self, scene: QGraphicsScene) -> None:
         super().__init__()
-        border = QColor("#00AA44")
-        border.setAlpha(180)
-        fill = QColor("#00AA44")
-        fill.setAlpha(40)
-        self.setPen(QPen(border, 1))
-        self.setBrush(QBrush(fill))
+        _border_pen = QPen(QColor("#00ff00"), 2)
+        _border_pen.setStyle(Qt.DashLine)
+        self.setPen(_border_pen)
+        self.setBrush(Qt.NoBrush)
         self.setZValue(4)
         self.setZValue(2)
         scene.addItem(self)
@@ -607,9 +605,6 @@ class TacticalMapWidget(QGraphicsView):
         self.scene.addItem(self.uav_marker)
         self.uav_marker.setZValue(7)
 
-        self._cep_label = self._make_text_item("", 0, 0, QColor("#00AA44"), QFont("Consolas", 9))
-        self._cep_label.setZValue(50)
-
         self.impact_layer = ImpactEllipseLayer(self.scene)
         self.corridor_layer = CorridorLayer(self.scene)
         self.guidance_arrow = GuidanceArrow(self.scene)
@@ -619,6 +614,15 @@ class TacticalMapWidget(QGraphicsView):
         self.heatmap_layer = ImpactHeatmapLayer(self.scene)
         self.boundary_indicator = BoundaryIndicator(self.scene)
         self.drift_arrow = DriftArrow(self.scene)
+
+        self._cep_circle = QGraphicsEllipseItem()
+        _cep_pen = QPen(QColor("#00ff00"), 1)
+        _cep_pen.setStyle(Qt.DashLine)
+        self._cep_circle.setPen(_cep_pen)
+        self._cep_circle.setBrush(Qt.NoBrush)
+        self._cep_circle.setZValue(6)
+        self._cep_circle.setVisible(False)
+        self.scene.addItem(self._cep_circle)
 
         self.show_scatter = True
         self.show_corridor_centerline = True
@@ -794,15 +798,17 @@ class TacticalMapWidget(QGraphicsView):
             self._initial_center_done = True
 
     def fit_view_to_uav_and_target(self) -> None:
-        """Auto-zoom to include UAV, target, and impact_mean with 25% padding."""
+        """Auto-zoom to UAV, target, and corridor bounds with 25% padding."""
         candidates = []
         if self._last_uav_scene_pos is not None:
             candidates.append(self._last_uav_scene_pos)
         if self._last_target_scene_pos is not None:
             candidates.append(self._last_target_scene_pos)
-        impact_scene = getattr(self, "_last_impact_mean_scene", None)
-        if impact_scene is not None:
-            candidates.append(impact_scene)
+        if not self._corridor_collapsed:
+            poly = self.corridor_layer.polygon()
+            for i in range(poly.count()):
+                pt = poly.at(i)
+                candidates.append((pt.x(), pt.y()))
         if not candidates:
             return
         xs = [p[0] for p in candidates]
@@ -1020,24 +1026,15 @@ class TacticalMapWidget(QGraphicsView):
             return
         super().keyPressEvent(event)
 
-    def update_cep_label(self, cep_m: float) -> None:
-        # Anchor priority: drift endpoint \u2192 impact_mean scene pos \u2192 hide.
-        anchor = getattr(self, "_last_drift_endpoint_scene", None)
-        if anchor is None:
-            anchor = getattr(self, "_last_impact_mean_scene", None)
-        if anchor is None:
-            self._cep_label.setPlainText("")
+    def update_cep_circle(self, target_x: "float | None", target_y: "float | None",
+                          cep_m: "float | None", visible: bool) -> None:
+        if not visible or target_x is None or target_y is None or cep_m is None or cep_m > 999.9:
+            self._cep_circle.setVisible(False)
             return
-        if float(cep_m) > 999.9:
-            text = "CEP\u2085\u2080: ---"
-        else:
-            text = f"CEP\u2085\u2080: {float(cep_m):.1f} m"
-        self._cep_label.setPlainText(text)
-        self._last_cep50_m = float(cep_m)
-        sx, sy = anchor
-        # 30px below anchor on screen. Y is flipped (scene up = screen down),
-        # so screen-down = scene -30.
-        self._cep_label.setPos(float(sx), float(sy) - 30.0)
+        sx, sy = self._transform.world_to_scene(float(target_x), float(target_y))
+        r_px = float(cep_m) * self._transform.pixels_per_meter
+        self._cep_circle.setRect(sx - r_px, sy - r_px, r_px * 2.0, r_px * 2.0)
+        self._cep_circle.setVisible(True)
 
     def update_status(self, status: str) -> None:
         if getattr(self, "_corridor_collapsed", False):
