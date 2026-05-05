@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QLabel,
     QWidget,
+    QGraphicsDropShadowEffect,
 )
 
 from product.ui.map_transform import MapTransform
@@ -107,9 +108,11 @@ class WindIndicatorLayer(QWidget):
             y1 = cy - 0.5 * length * math.sin(angle)
             x2 = cx + 0.5 * length * math.cos(angle)
             y2 = cy + 0.5 * length * math.sin(angle)
-            pen = QPen(QColor("#ffffff"), 2)
-            p.setPen(pen)
+            
+            # Halo
+            p.setPen(QPen(QColor("#000000"), 5))
             p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
             # Arrowhead at (x2, y2).
             head = 8.0
             left = angle + math.radians(150)
@@ -119,12 +122,25 @@ class WindIndicatorLayer(QWidget):
                 QPointF(x2 + head * math.cos(left), y2 + head * math.sin(left)),
                 QPointF(x2 + head * math.cos(right), y2 + head * math.sin(right)),
             ])
+            p.setBrush(QBrush(QColor("#000000")))
+            p.drawPolygon(poly)
+            
+            # Primary
+            p.setPen(QPen(QColor("#ffffff"), 2))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+            
+            p.setPen(Qt.NoPen)
             p.setBrush(QBrush(QColor("#ffffff")))
             p.drawPolygon(poly)
             # Label below arrow.
             p.setFont(QFont("Consolas", 9))
-            p.setPen(QColor("#ffffff"))
             label = f"{self._speed:.1f} m/s"
+            
+            p.setPen(QColor(0, 0, 0, 200))
+            p.drawText(QRectF(1.0, self.height() - 17.0, float(self.width()), 16.0),
+                       int(Qt.AlignHCenter | Qt.AlignVCenter), label)
+                       
+            p.setPen(QColor("#ffffff"))
             p.drawText(QRectF(0.0, self.height() - 18.0, float(self.width()), 16.0),
                        int(Qt.AlignHCenter | Qt.AlignVCenter), label)
         finally:
@@ -206,13 +222,20 @@ class UAVMarker(QGraphicsPolygonItem):
     def __init__(self) -> None:
         poly = QPolygonF(
             [
-                QPointF(15.0, 0.0),
-                QPointF(-10.0, -7.0),
-                QPointF(-10.0, 7.0),
+                QPointF(12.0, 0.0),
+                QPointF(-8.0, -5.6),
+                QPointF(-8.0, 5.6),
             ]
         )
         super().__init__(poly)
-        self.setPen(QPen(QColor("#00ff41"), 1.5))
+        
+        self._halo = QGraphicsPolygonItem(poly, parent=self)
+        self._halo.setPen(QPen(QColor("#000000"), 3))
+        self._halo.setBrush(QBrush(QColor("#000000")))
+        self._halo.setZValue(-1)
+        self._halo.setFlag(QGraphicsItem.ItemStacksBehindParent)
+
+        self.setPen(QPen(QColor("#00ff41"), 1))
         self.setBrush(QBrush(QColor("#00ff41")))
         self.setTransformOriginPoint(0.0, 0.0)
         self.setFlag(QGraphicsItem.ItemIgnoresTransformations)
@@ -231,17 +254,18 @@ class ImpactEllipseLayer:
         self._ellipse_68 = QGraphicsEllipseItem()
         self._ellipse_95 = QGraphicsEllipseItem()
 
-        green = QColor("#00AA44")
-        amber = QColor("#FF8C00")
-        self._ellipse_68.setPen(QPen(green, 2))
-        self._ellipse_95.setPen(QPen(amber, 2))
+        green = QColor("#00ff41")
+        green.setAlpha(20)
 
-        green_brush = QColor(green)
-        green_brush.setAlpha(120)
-        amber_brush = QColor(amber)
-        amber_brush.setAlpha(80)
-        self._ellipse_68.setBrush(QBrush(green_brush))
-        self._ellipse_95.setBrush(QBrush(amber_brush))
+        pen = QPen(Qt.NoPen)
+        self._ellipse_68.setPen(pen)
+        self._ellipse_95.setPen(pen)
+
+        self._ellipse_68.setBrush(QBrush(green))
+        
+        green_outer = QColor("#00ff41")
+        green_outer.setAlpha(10)
+        self._ellipse_95.setBrush(QBrush(green_outer))
 
         self._ellipse_68.setOpacity(1.0)
         self._ellipse_95.setOpacity(1.0)
@@ -280,16 +304,24 @@ class TargetMarker(QGraphicsItemGroup):
 
     def __init__(self) -> None:
         super().__init__()
-        h = QGraphicsLineItem(-10.0, 0.0, 10.0, 0.0)
-        h.setPen(QPen(QColor("#ffff33"), 2))
-        v = QGraphicsLineItem(0.0, -10.0, 0.0, 10.0)
-        v.setPen(QPen(QColor("#ffff33"), 2))
-        self.addToGroup(h)
-        self.addToGroup(v)
+        
+        self.h = QGraphicsLineItem(-6.0, 0.0, 6.0, 0.0)
+        self.v = QGraphicsLineItem(0.0, -6.0, 0.0, 6.0)
+        self.addToGroup(self.h)
+        self.addToGroup(self.v)
+        
         self.setZValue(5)
+        self.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
+        self.set_alert(False)
 
     def set_position(self, x: float, y: float) -> None:
         self.setPos(float(x), float(y))
+
+    def set_alert(self, active: bool) -> None:
+        color = QColor("#FF0000") if active else QColor("#FFFFFF")
+        pen = QPen(color, 1)
+        self.h.setPen(pen)
+        self.v.setPen(pen)
 
 
 class CorridorLayer(QGraphicsPolygonItem):
@@ -297,20 +329,18 @@ class CorridorLayer(QGraphicsPolygonItem):
 
     def __init__(self, scene: QGraphicsScene) -> None:
         super().__init__()
-        _border_pen = QPen(QColor("#00ff00"), 2)
+        
+        _border_color = QColor("#ffb300")
+        _border_pen = QPen(_border_color, 0)
         _border_pen.setStyle(Qt.DashLine)
         self.setPen(_border_pen)
-        self.setBrush(Qt.NoBrush)
-        self.setZValue(4)
+        
+        _fill_color = QColor("#00ff41")
+        _fill_color.setAlpha(20)
+        self.setBrush(QBrush(_fill_color))
+        
         self.setZValue(2)
         scene.addItem(self)
-
-        self._centerline = QGraphicsLineItem()
-        pen = QPen(QColor("#ffffff"), 2)
-        pen.setStyle(Qt.DashLine)
-        self._centerline.setPen(pen)
-        self._centerline.setZValue(4)
-        scene.addItem(self._centerline)
 
         self._centerline_points: Tuple[QPointF, QPointF] | None = None
         self._collapsed = False
@@ -319,18 +349,26 @@ class CorridorLayer(QGraphicsPolygonItem):
         pts = list(points)
         if len(pts) < 3:
             self.setVisible(False)
-            self._centerline.setVisible(False)
             self._centerline_points = None
             self._collapsed = True
             return
         area = self._polygon_area(pts)
         if area < 5.0:
             self.setVisible(False)
-            self._centerline.setVisible(False)
             self._centerline_points = None
             self._collapsed = True
             return
         self._collapsed = False
+        
+        if len(pts) == 4:
+            p1 = QPointF(float(pts[1][0]), float(pts[1][1]))
+            p2 = QPointF(float(pts[2][0]), float(pts[2][1]))
+            fc = (p1 + p2) * 0.5
+            new_p1 = fc + (p1 - fc) * 0.4
+            new_p2 = fc + (p2 - fc) * 0.4
+            pts[1] = (new_p1.x(), new_p1.y())
+            pts[2] = (new_p2.x(), new_p2.y())
+
         self.setVisible(True)
         poly = QPolygonF([QPointF(float(x), float(y)) for x, y in pts])
         self.setPolygon(poly)
@@ -339,17 +377,14 @@ class CorridorLayer(QGraphicsPolygonItem):
     def _update_centerline(self, points: Iterable[Tuple[float, float]]) -> None:
         pts = [QPointF(float(x), float(y)) for x, y in points]
         if len(pts) < 4:
-            self._centerline.setVisible(False)
             self._centerline_points = None
             return
-        a0 = QPointF((pts[0].x() + pts[1].x()) * 0.5, (pts[0].y() + pts[1].y()) * 0.5)
-        a1 = QPointF((pts[2].x() + pts[3].x()) * 0.5, (pts[2].y() + pts[3].y()) * 0.5)
-        self._centerline.setLine(a0.x(), a0.y(), a1.x(), a1.y())
-        self._centerline.setVisible(True)
+        a0 = QPointF((pts[0].x() + pts[3].x()) * 0.5, (pts[0].y() + pts[3].y()) * 0.5)
+        a1 = QPointF((pts[1].x() + pts[2].x()) * 0.5, (pts[1].y() + pts[2].y()) * 0.5)
         self._centerline_points = (a0, a1)
 
     def set_centerline_visible(self, visible: bool) -> None:
-        self._centerline.setVisible(visible)
+        pass
 
     def centerline_points(self) -> Tuple[QPointF, QPointF] | None:
         return self._centerline_points
@@ -372,24 +407,38 @@ class GuidanceArrow:
     """Line + arrow head guidance indicator."""
 
     def __init__(self, scene: QGraphicsScene) -> None:
+        self._line_halo = QGraphicsLineItem()
+        self._line_halo.setPen(QPen(QColor("#000000"), 4))
+        self._line_halo.setZValue(3)
+        scene.addItem(self._line_halo)
+
         self._line = QGraphicsLineItem()
-        self._line.setPen(QPen(QColor("#ffffff"), 2))
+        self._line.setPen(QPen(QColor("#ffffff"), 1))
         self._line.setZValue(4)
         scene.addItem(self._line)
 
+        self._head_halo = QGraphicsPolygonItem()
+        self._head_halo.setPen(QPen(QColor("#000000"), 4))
+        self._head_halo.setBrush(QBrush(QColor("#000000")))
+        self._head_halo.setZValue(3)
+        scene.addItem(self._head_halo)
+
         self._head = QGraphicsPolygonItem()
-        self._head.setPen(QPen(QColor("#ffffff"), 2))
+        self._head.setPen(QPen(QColor("#ffffff"), 1))
         self._head.setBrush(QBrush(QColor("#ffffff")))
         self._head.setZValue(4)
         scene.addItem(self._head)
 
     def update(self, x1: float, y1: float, x2: float, y2: float) -> None:
         self._line.setLine(float(x1), float(y1), float(x2), float(y2))
+        self._line_halo.setLine(float(x1), float(y1), float(x2), float(y2))
         self._update_head(x1, y1, x2, y2)
 
     def set_visible(self, visible: bool) -> None:
         self._line.setVisible(visible)
+        self._line_halo.setVisible(visible)
         self._head.setVisible(visible)
+        self._head_halo.setVisible(visible)
 
     def _update_head(self, x1: float, y1: float, x2: float, y2: float) -> None:
         angle = math.atan2(float(y2) - float(y1), float(x2) - float(x1))
@@ -399,7 +448,9 @@ class GuidanceArrow:
         p1 = QPointF(float(x2), float(y2))
         p2 = QPointF(float(x2) + size * math.cos(left), float(y2) + size * math.sin(left))
         p3 = QPointF(float(x2) + size * math.cos(right), float(y2) + size * math.sin(right))
-        self._head.setPolygon(QPolygonF([p1, p2, p3]))
+        poly = QPolygonF([p1, p2, p3])
+        self._head.setPolygon(poly)
+        self._head_halo.setPolygon(poly)
 
 
 class BoundaryIndicator:
@@ -463,22 +514,31 @@ class DriftArrow:
     """Drift arrow from release point to mean impact."""
 
     def __init__(self, scene: QGraphicsScene) -> None:
+        pen = QPen(QColor("#ffffff"), 1)
+        pen.setStyle(Qt.DashLine)
         self._line = QGraphicsLineItem()
-        self._line.setPen(QPen(QColor("#ff9933"), 2))
+        self._line.setPen(pen)
         self._line.setZValue(4)
         scene.addItem(self._line)
 
         self._head = QGraphicsPolygonItem()
-        self._head.setPen(QPen(QColor("#ff9933"), 2))
-        self._head.setBrush(QBrush(QColor("#ff9933")))
+        self._head.setPen(QPen(QColor("#ffffff"), 1))
+        self._head.setBrush(QBrush(QColor("#ffffff")))
         self._head.setZValue(4)
         scene.addItem(self._head)
 
         self._label = QGraphicsTextItem("")
         self._label.setFont(QFont("Consolas", 9))
-        self._label.setDefaultTextColor(QColor("#ff9933"))
+        self._label.setDefaultTextColor(QColor("#ffffff"))
         self._label.setZValue(100)
         self._label.setTransform(QTransform().scale(1.0, -1.0))
+        
+        effect = QGraphicsDropShadowEffect()
+        effect.setBlurRadius(2)
+        effect.setColor(QColor(0, 0, 0, 255))
+        effect.setOffset(1, 1)
+        self._label.setGraphicsEffect(effect)
+        
         scene.addItem(self._label)
 
     def update(self, x1: float, y1: float, x2: float, y2: float) -> None:
@@ -493,13 +553,14 @@ class DriftArrow:
 
     def _update_head(self, x1: float, y1: float, x2: float, y2: float) -> None:
         angle = math.atan2(float(y2) - float(y1), float(x2) - float(x1))
-        size = 8.0
-        left = angle + math.radians(150)
-        right = angle - math.radians(150)
+        size = 6.0
+        left = angle + math.radians(160)
+        right = angle - math.radians(160)
         p1 = QPointF(float(x2), float(y2))
         p2 = QPointF(float(x2) + size * math.cos(left), float(y2) + size * math.sin(left))
         p3 = QPointF(float(x2) + size * math.cos(right), float(y2) + size * math.sin(right))
-        self._head.setPolygon(QPolygonF([p1, p2, p3]))
+        poly = QPolygonF([p1, p2, p3])
+        self._head.setPolygon(poly)
 
 
 class ImpactScatterLayer:
@@ -604,14 +665,14 @@ class ImpactHeatmapLayer:
                     item.setZValue(1)
                     self._scene.addItem(item)
                     self._tiles[key] = item
-                color = QColor("#00ff41")
+                color = QColor("#00FFFF")
                 ratio = (val - min_val) / span
                 if ratio > 0.66:
                     color = QColor("#ff3333")
                 elif ratio > 0.33:
                     color = QColor("#ffcc33")
                 else:
-                    color = QColor("#00ff41")
+                    color = QColor("#00FFFF")
                 color.setAlpha(120)
                 item.setRect(x, y, self._tile_size, self._tile_size)
                 item.setBrush(QBrush(color))
@@ -630,6 +691,13 @@ class TacticalMapWidget(QGraphicsView):
         if font:
             item.setFont(font)
         item.setTransform(QTransform().scale(1.0, -1.0))  # Counter-flip for ENU Y-up
+        
+        effect = QGraphicsDropShadowEffect()
+        effect.setBlurRadius(2)
+        effect.setColor(QColor(0, 0, 0, 255))
+        effect.setOffset(1, 1)
+        item.setGraphicsEffect(effect)
+        
         item.setPos(x, y)
         self.scene.addItem(item)
         return item
@@ -686,7 +754,9 @@ class TacticalMapWidget(QGraphicsView):
         self.drift_arrow = DriftArrow(self.scene)
 
         self._cep_circle = QGraphicsEllipseItem()
-        _cep_pen = QPen(QColor("#00ff00"), 1)
+        _cep_color = QColor("#FF0000")
+        _cep_color.setAlpha(120)
+        _cep_pen = QPen(_cep_color, 1)
         _cep_pen.setStyle(Qt.DashLine)
         self._cep_circle.setPen(_cep_pen)
         self._cep_circle.setBrush(Qt.NoBrush)
@@ -713,7 +783,7 @@ class TacticalMapWidget(QGraphicsView):
         self._scale_bar_line = QGraphicsLineItem()
         self._scale_bar_tick_a = QGraphicsLineItem()
         self._scale_bar_tick_b = QGraphicsLineItem()
-        self._scale_bar_text = self._make_text_item("0 ----- 50m", 0, 0, QColor("#00ff41"), QFont("Consolas", 9))
+        self._scale_bar_text = self._make_text_item("0 ----- 50m", 0, 0, QColor("#00FFFF"), QFont("Consolas", 9))
         # _scale_bar_text already added to scene by _make_text_item — set zValue only.
         self._scale_bar_text.setZValue(100)
         for item in (self._scale_bar_line, self._scale_bar_tick_a, self._scale_bar_tick_b):
@@ -727,7 +797,7 @@ class TacticalMapWidget(QGraphicsView):
         self._tdrop_label = self._make_text_item("", 0, 0, QColor("#ffffff"), QFont("Consolas", 9))
         self._tdrop_label.setZValue(100)
 
-        self._phit_label = self._make_text_item("", 0, 0, QColor("#00ff41"), QFont("Consolas", 9))
+        self._phit_label = self._make_text_item("", 0, 0, QColor("#00FFFF"), QFont("Consolas", 9))
         self._phit_label.setZValue(100)
 
         self._transform.apply_to_view(self)
@@ -750,10 +820,10 @@ class TacticalMapWidget(QGraphicsView):
         self._reposition_no_feed_label()
         self._no_feed_label.show()
 
-        self._wind_indicator = WindIndicatorLayer(self.viewport())
+        self._wind_indicator = WindIndicatorLayer(self)
         self._reposition_wind_indicator()
 
-        self._legend = MapLegendWidget(self.viewport(), on_resize=self._reposition_legend)
+        self._legend = MapLegendWidget(self, on_resize=self._reposition_legend)
         self._reposition_legend()
 
         # Ensure camera feed sits below other viewport children.
@@ -836,9 +906,10 @@ class TacticalMapWidget(QGraphicsView):
             viewport = self.viewport()
             w = self._wind_indicator.width()
             h = self._wind_indicator.height()
-            x = 20
-            y = viewport.height() - h - 20
+            x = 16
+            y = viewport.height() - h - 16
             self._wind_indicator.move(x, y)
+            self._wind_indicator.raise_()
 
     def _reposition_legend(self):
         if hasattr(self, '_legend'):
@@ -848,6 +919,7 @@ class TacticalMapWidget(QGraphicsView):
             x = viewport.width() - w - 16
             y = viewport.height() - h - 16
             self._legend.move(x, y)
+            self._legend.raise_()
 
 
     # ---- Public update methods (no item creation) ----
@@ -893,11 +965,13 @@ class TacticalMapWidget(QGraphicsView):
             candidates.append(self._last_uav_scene_pos)
         if self._last_target_scene_pos is not None:
             candidates.append(self._last_target_scene_pos)
-        if not self._corridor_collapsed:
-            poly = self.corridor_layer.polygon()
+            
+        poly = self.corridor_layer.polygon()
+        if not poly.isEmpty():
             for i in range(poly.count()):
                 pt = poly.at(i)
                 candidates.append((pt.x(), pt.y()))
+                
         if not candidates:
             return
         xs = [p[0] for p in candidates]
@@ -987,9 +1061,20 @@ class TacticalMapWidget(QGraphicsView):
             t = max(0.0, min(1.0, t))
             px = a.x() + vx * t
             py = a.y() + vy * t
-        if math.hypot(px - u.x(), py - u.y()) < 1.0:
+            
+        dx = px - u.x()
+        dy = py - u.y()
+        dist = math.hypot(dx, dy)
+        if dist < 1.0:
             self.guidance_arrow.set_visible(False)
             return
+            
+        scale = self.transform().m11()
+        if scale > 0 and dist * scale > 40.0:
+            ratio = (40.0 / scale) / dist
+            px = u.x() + dx * ratio
+            py = u.y() + dy * ratio
+
         self.guidance_arrow.set_visible(True)
         self.guidance_arrow.update(u.x(), u.y(), px, py)
 
@@ -1145,7 +1230,7 @@ class TacticalMapWidget(QGraphicsView):
         elif text == "APPROACH CORRIDOR":
             color = QColor("#ffaa00")
         elif text == "IN DROP ZONE":
-            color = QColor("#00ff41")
+            color = QColor("#00FFFF")
         elif text == "DROP NOW":
             color = QColor("#44ff44")
         self._banner_item.setDefaultTextColor(color)
@@ -1176,14 +1261,14 @@ class TacticalMapWidget(QGraphicsView):
         rect = self.scene.sceneRect()
         x = rect.left() + 20.0
         y = rect.bottom() + 20.0
-        pen = QPen(QColor("#00ff41"), 2)
+        pen = QPen(QColor("#00FFFF"), 2)
         self._scale_bar_line.setPen(pen)
         self._scale_bar_tick_a.setPen(pen)
         self._scale_bar_tick_b.setPen(pen)
         self._scale_bar_line.setLine(x, y, x + length, y)
         self._scale_bar_tick_a.setLine(x, y - 5.0, x, y + 5.0)
         self._scale_bar_tick_b.setLine(x + length, y - 5.0, x + length, y + 5.0)
-        self._scale_bar_text.setDefaultTextColor(QColor("#00ff41"))
+        self._scale_bar_text.setDefaultTextColor(QColor("#00FFFF"))
         self._scale_bar_text.setFont(QFont("Consolas", 9))
         self._scale_bar_text.setPlainText("0 ----- 50m")
         self._scale_bar_text.setPos(x, y + 8.0)
@@ -1229,7 +1314,7 @@ class TacticalMapWidget(QGraphicsView):
             return
         color = QColor("#ff3333")
         if p_hit > 0.7:
-            color = QColor("#00ff41")
+            color = QColor("#00FFFF")
         elif p_hit > 0.4:
             color = QColor("#ffcc33")
         self._phit_label.setDefaultTextColor(color)

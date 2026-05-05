@@ -10,27 +10,8 @@ from PySide6.QtCore import QThread, Signal
 
 
 def _dict_from_mock():
-    age_s = random.uniform(0.1, 1.2)
-    if age_s < 0.5:
-        status = "Fresh"
-    elif age_s < 1.0:
-        status = "Delay"
-    else:
-        status = "Lost"
-    return {
-        "x": random.uniform(-50.0, 150.0),
-        "y": random.uniform(-50.0, 50.0),
-        "z": random.uniform(120.0, 260.0),
-        "vx": random.uniform(10.0, 30.0),
-        "vy": random.uniform(-4.0, 4.0),
-        "wind_x": random.uniform(-6.0, 8.0),
-        "wind_y": random.uniform(-4.0, 4.0),
-        "wind_std": random.uniform(0.5, 3.0),
-        "packet_rate_hz": random.uniform(8.0, 12.0),
-        "age_s": age_s,
-        "status": status,
-    }
-
+    # Deprecated in favor of kinematic loop inside TelemetryWorker
+    pass
 
 def _dict_from_snapshot(snapshot, wind_x: float = 2.0, wind_std: float = 0.8):
     """Convert UAVStateSnapshot to the dict shape expected by MainWindow."""
@@ -69,10 +50,35 @@ class TelemetryWorker(QThread):
             self._run_mock()
 
     def _run_mock(self) -> None:
+        # Kinematic state initialization
+        x, y, z = -1000.0, 8.0, 150.0  # Start way back, slightly offset
+        vx, vy = 20.0, 0.0  # Fly East at 20 m/s
+        dt = 0.1  # 100ms update interval for smooth UI
+        
         while self.running:
-            payload = _dict_from_mock()
+            # Kinematic integration
+            x += vx * dt
+            y += vy * dt
+            
+            # Loop around for continuous testing (much further out to prevent zoom bounce)
+            if x > 1000.0:
+                x = -1000.0
+                
+            payload = {
+                "x": x,
+                "y": y,
+                "z": z,
+                "vx": vx,
+                "vy": vy,
+                "wind_x": 2.0,
+                "wind_y": 0.0,
+                "wind_std": 0.5,
+                "packet_rate_hz": 10.0,
+                "age_s": 0.1,
+                "status": "Fresh",
+            }
             self.telemetry_updated.emit(payload)
-            self.msleep(500)
+            self.msleep(int(dt * 1000))
 
     def _run_file_replay(self) -> None:
         try:
